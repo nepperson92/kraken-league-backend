@@ -21,6 +21,7 @@ router.get('/records', async (req, res) => {
     SELECT
       o.id AS owner_id,
       o.name,
+      o.sleeper_user_id,
       COUNT(sr.id) AS seasons_played,
       COALESCE(SUM(sr.wins),0) AS total_wins,
       COALESCE(SUM(sr.losses),0) AS total_losses,
@@ -33,7 +34,7 @@ router.get('/records', async (req, res) => {
       COUNT(*) FILTER (WHERE sr.last_place) AS times_last_place
     FROM owners o
     LEFT JOIN season_results sr ON sr.owner_id = o.id
-    GROUP BY o.id, o.name
+    GROUP BY o.id, o.name, o.sleeper_user_id
     ORDER BY championships DESC, total_wins DESC
   `);
   res.json(result.rows);
