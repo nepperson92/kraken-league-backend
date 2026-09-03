@@ -95,6 +95,12 @@
     <button class="secondary" id="grades-recompute-btn">Force recompute grades</button>
     <div id="rankings-msg" class="msg"></div>
     <pre id="rankings-output" style="display:none;"></pre>
+
+    <div style="margin-top:22px; padding-top:18px; border-top:1px solid var(--line);">
+      <label>Rankings currently on file for this year</label>
+      <button class="secondary" id="rankings-list-refresh" style="margin-top:6px;">Show list</button>
+      <div id="rankings-list" style="margin-top:10px; max-height:400px; overflow-y:auto;"></div>
+    </div>
   </section>
 
   <section>
@@ -282,6 +288,60 @@
       showMsg(msg, true, `Recomputed grades for ${data.results.length} teams.`);
     }catch(e){ showMsg(msg, false, e.message); }
   });
+
+  // ---- Pre-draft rankings list (view/edit/delete) ----
+  async function loadRankingsList(){
+    const year = parseInt($('#rankings-year').value, 10) || new Date().getFullYear();
+    const list = $('#rankings-list');
+    list.innerHTML = 'Loading…';
+    try{
+      const rows = await (await fetch(`/api/draft-rankings/${year}`)).json();
+      if(!rows.length){ list.innerHTML = `<div class="sub">No rankings on file for ${year} yet.</div>`; return; }
+      list.innerHTML = rows.map(r => `<div class="owner-row" data-id="${r.id}">
+        <span>#${r.overall_rank} ${r.player_name}${r.position ? ` (${r.position}${r.team ? ', '+r.team : ''})` : ''}${!r.sleeper_player_id ? ' <span class="sub" style="display:inline;color:var(--loss);">unmatched</span>' : ''}</span>
+        <span>
+          <button class="secondary" data-edit-rank-id="${r.id}">Edit</button>
+          <button data-delete-rank-id="${r.id}">Delete</button>
+        </span>
+      </div>`).join('');
+      list.querySelectorAll('button[data-edit-rank-id]').forEach(btn => {
+        const row = rows.find(r => String(r.id) === btn.dataset.editRankId);
+        btn.addEventListener('click', () => editRanking(row, year));
+      });
+      list.querySelectorAll('button[data-delete-rank-id]').forEach(btn => {
+        btn.addEventListener('click', () => deleteRanking(btn.dataset.deleteRankId, year));
+      });
+    }catch(e){
+      list.innerHTML = '<div class="sub">Could not load rankings.</div>';
+    }
+  }
+  $('#rankings-list-refresh').addEventListener('click', loadRankingsList);
+
+  async function editRanking(row, year){
+    const newRank = prompt('Rank:', row.overall_rank);
+    if(newRank === null) return;
+    const newName = prompt('Player name:', row.player_name);
+    if(newName === null) return;
+    const newPos = prompt('Position (optional):', row.position || '');
+    const newTeam = prompt('NFL team (optional):', row.team || '');
+    try{
+      const res = await fetch(`/api/admin/draft-rankings/${row.id}`, {
+        method:'PUT', headers: headers(),
+        body: JSON.stringify({ rank: parseInt(newRank,10), playerName: newName, position: newPos||null, team: newTeam||null })
+      });
+      if(!res.ok) throw new Error('Could not save changes');
+      loadRankingsList();
+    }catch(e){ alert(e.message); }
+  }
+
+  async function deleteRanking(id, year){
+    if(!confirm('Remove this ranking entry?')) return;
+    try{
+      const res = await fetch(`/api/admin/draft-rankings/${id}`, { method:'DELETE', headers: headers() });
+      if(!res.ok) throw new Error('Could not delete');
+      loadRankingsList();
+    }catch(e){ alert(e.message); }
+  }
 
   // ---- Keepers ----
   let editingKeeperId = null;

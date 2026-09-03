@@ -247,4 +247,30 @@ async function computeAndStore(year) {
   return graded;
 }
 
-module.exports = { parseRankingsCSV, importRankings, computeDraftGrades, computeAndStore };
+async function getRankings(year) {
+  const result = await db.query(`
+    SELECT dr.* FROM draft_rankings dr
+    JOIN seasons s ON s.id = dr.season_id
+    WHERE s.year = $1
+    ORDER BY dr.overall_rank ASC
+  `, [year]);
+  return result.rows;
+}
+
+async function updateRankingById(id, { rank, playerName, position, team }) {
+  let sleeperPlayerId = null;
+  try { sleeperPlayerId = await players.findPlayerId(playerName, position); } catch (e) { /* non-fatal */ }
+  const result = await db.query(
+    `UPDATE draft_rankings SET
+       overall_rank = $1, player_name = $2, position = $3, team = $4, sleeper_player_id = $5
+     WHERE id = $6 RETURNING *`,
+    [rank, playerName, position || null, team || null, sleeperPlayerId, id]
+  );
+  return result.rows[0] || null;
+}
+
+async function deleteRankingById(id) {
+  await db.query('DELETE FROM draft_rankings WHERE id = $1', [id]);
+}
+
+module.exports = { parseRankingsCSV, importRankings, computeDraftGrades, computeAndStore, getRankings, updateRankingById, deleteRankingById };

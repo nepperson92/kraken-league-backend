@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const { syncSeason, syncAllSleeperHistory, syncMatchupHistory } = require('../sleeperSync');
-const { parseRankingsCSV, importRankings, computeAndStore } = require('../draftGrading');
+const { parseRankingsCSV, importRankings, computeAndStore, updateRankingById, deleteRankingById } = require('../draftGrading');
 const { clearWriteups, generateMatchupWriteups } = require('../writeupGenerator');
 const { setSetting } = require('../settings');
 const { addOrUpdateKeeper, updateKeeperById } = require('../keepers');
@@ -152,6 +152,24 @@ router.post('/draft-grades/recompute', async (req, res) => {
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
+});
+
+// Edit or remove a single pre-draft ranking entry
+router.put('/draft-rankings/:id', async (req, res) => {
+  const { rank, playerName, position, team } = req.body;
+  if (!rank || !playerName) return res.status(400).json({ error: 'rank and playerName are required' });
+  try {
+    const row = await updateRankingById(req.params.id, { rank, playerName, position, team });
+    if (!row) return res.status(404).json({ error: 'Ranking not found' });
+    res.json(row);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.delete('/draft-rankings/:id', async (req, res) => {
+  await deleteRankingById(req.params.id);
+  res.json({ ok: true });
 });
 
 // Force-regenerate this week's matchup writeups (e.g. lineups changed, or you just want a redo)

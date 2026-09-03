@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const { generateMatchupWriteups } = require('../writeupGenerator');
+const { getRankings } = require('../draftGrading');
 const { listKeepers } = require('../keepers');
 const { getSetting } = require('../settings');
 
@@ -130,6 +131,13 @@ router.get('/keepers/:year', async (req, res) => {
 router.get('/config', async (req, res) => {
   const leagueId = await getSetting('current_league_id');
   res.json({ leagueId: leagueId || null });
+});
+
+// Pre-draft rankings on file for a season, for display or verification
+router.get('/draft-rankings/:year', async (req, res) => {
+  const year = parseInt(req.params.year, 10);
+  const rows = await getRankings(year);
+  res.json(rows);
 });
 
 module.exports = router;
