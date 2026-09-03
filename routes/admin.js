@@ -18,6 +18,9 @@ function requireAdmin(req, res, next) {
 }
 router.use(requireAdmin);
 
+// Side-effect-free password check, used by the admin panel's login screen
+router.get('/ping', (req, res) => res.json({ ok: true }));
+
 // ---- Owners ----
 router.post('/owners', async (req, res) => {
   const { name, sleeper_user_id } = req.body;
@@ -37,6 +40,12 @@ router.put('/owners/:id', async (req, res) => {
   );
   if (!result.rows.length) return res.status(404).json({ error: 'Owner not found' });
   res.json(result.rows[0]);
+});
+
+router.delete('/owners/:id', async (req, res) => {
+  const result = await db.query('DELETE FROM owners WHERE id = $1 RETURNING id', [req.params.id]);
+  if (!result.rows.length) return res.status(404).json({ error: 'Owner not found' });
+  res.json({ ok: true });
 });
 
 // ---- Seasons (for manually entering pre-Sleeper years) ----

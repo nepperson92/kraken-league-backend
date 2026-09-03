@@ -4,9 +4,14 @@ const db = require('../db');
 const { generateMatchupWriteups } = require('../writeupGenerator');
 const { listKeepers } = require('../keepers');
 
-// All owners
+// All owners, with counts so it's obvious which ones actually have data attached
 router.get('/owners', async (req, res) => {
-  const result = await db.query('SELECT * FROM owners ORDER BY name ASC');
+  const result = await db.query(`
+    SELECT o.*,
+      (SELECT COUNT(*) FROM season_results sr WHERE sr.owner_id = o.id) AS season_count,
+      (SELECT COUNT(*) FROM keepers k WHERE k.owner_id = o.id) AS keeper_count
+    FROM owners o ORDER BY o.name ASC
+  `);
   res.json(result.rows);
 });
 

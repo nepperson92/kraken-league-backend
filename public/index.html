@@ -35,6 +35,10 @@
   }
   button:hover{background:#ffb94f;}
   button.secondary{background:var(--bg-panel-raised); color:var(--ink); border:1px solid var(--line);}
+  .owner-row{display:flex; align-items:center; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--line); font-size:13.5px;}
+  .owner-row:last-child{border-bottom:none;}
+  .owner-row button{margin:0; padding:5px 12px; font-size:12px; background:transparent; border:1px solid var(--loss); color:var(--loss);}
+  .owner-row button:hover{background:rgba(193,84,74,0.12);}
   .msg{font-size:13px; margin-top:12px; padding:10px 12px; display:none;}
   .msg.ok{display:block; background:rgba(95,167,119,0.12); color:var(--win); border:1px solid rgba(95,167,119,0.3);}
   .msg.err{display:block; background:rgba(193,84,74,0.12); color:var(--loss); border:1px solid rgba(193,84,74,0.3);}
@@ -107,6 +111,7 @@
 
   <section>
     <h2>Owners</h2>
+    <div id="owners-list" style="margin-bottom:16px;"></div>
     <label>Name</label>
     <input id="owner-name" placeholder="Owner's name">
     <label>Sleeper user ID (optional — links auto-sync to this owner)</label>
@@ -172,23 +177,15 @@
 
   $('#pw-submit').addEventListener('click', async () => {
     ADMIN_PW = $('#pw-input').value;
-    // quick check: try a harmless admin call
-    const res = await fetch('/api/admin/owners', {
-      method: 'POST', headers: headers(),
-      body: JSON.stringify({ name: '__ping__' })
-    });
+    const res = await fetch('/api/admin/ping', { headers: headers() });
     if(res.status === 401){
       $('#pw-error').textContent = 'Incorrect password.';
       $('#pw-error').style.display = 'block';
       return;
     }
-    // clean up the ping owner if it got created
-    if(res.ok){
-      const created = await res.json();
-      await fetch(`/api/admin/owners/${created.id}`, { method:'PUT', headers: headers(), body: JSON.stringify({ name: '__ping__deleted__' }) });
-    }
     document.getElementById('gate').style.display = 'none';
     document.getElementById('panel').style.display = 'block';
+    loadOwnersList();
   });
 
   function headers(){
@@ -280,6 +277,45 @@
   });
 
   // ---- Owners ----
+  async function loadOwnersList(){
+    const list = $('#owners-list');
+    list.innerHTML = 'Loading owners…';
+    try{
+      const owners = await (await fetch('/api/owners')).json();
+      if(!owners.length){ list.innerHTML = '<div class="sub">No owners yet.</div>'; return; }
+      list.innerHTML = owners.map(o => {
+        const hasData = (o.season_count > 0 || o.keeper_count > 0);
+        const dataNote = hasData
+          ? `<span class="sub" style="display:inline; color:var(--win);">${o.season_count} season(s), ${o.keeper_count} keeper(s)</span>`
+          : `<span class="sub" style="display:inline;">no data attached — likely safe to delete if it's a duplicate</span>`;
+        return `<div class="owner-row" data-id="${o.id}">
+        <span>${o.name} — ${dataNote}</span>
+        <button data-owner-id="${o.id}" data-owner-name="${o.name.replace(/"/g,'&quot;')}" data-has-data="${hasData}">Delete</button>
+      </div>`;
+      }).join('');
+      list.querySelectorAll('button[data-owner-id]').forEach(btn => {
+        btn.addEventListener('click', () => deleteOwner(btn.dataset.ownerId, btn.dataset.ownerName, btn.dataset.hasData === 'true'));
+      });
+    }catch(e){
+      list.innerHTML = '<div class="sub">Could not load owners.</div>';
+    }
+  }
+
+  async function deleteOwner(id, name, hasData){
+    const warning = hasData
+      ? `"${name}" has real season results, keepers, or grades attached. Deleting it will permanently delete all of that too. Are you sure?`
+      : `Delete "${name}"? This can't be undone.`;
+    if(!confirm(warning)) return;
+    const msg = $('#owner-msg');
+    try{
+      const res = await fetch(`/api/admin/owners/${id}`, { method:'DELETE', headers: headers() });
+      const data = await res.json();
+      if(!res.ok) throw new Error(data.error || 'Could not delete owner');
+      showMsg(msg, true, `Deleted ${name}.`);
+      loadOwnersList();
+    }catch(e){ showMsg(msg, false, e.message); }
+  }
+
   $('#owner-submit').addEventListener('click', async () => {
     const name = $('#owner-name').value.trim();
     const sleeperId = $('#owner-sleeper-id').value.trim();
@@ -291,6 +327,7 @@
       if(!res.ok) throw new Error(data.error || 'Could not add owner');
       showMsg(msg, true, `Added ${data.name}.`);
       $('#owner-name').value=''; $('#owner-sleeper-id').value='';
+      loadOwnersList();
     }catch(e){ showMsg(msg, false, e.message); }
   });
 
