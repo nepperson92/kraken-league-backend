@@ -102,8 +102,10 @@
     </div>
     <div class="row">
       <div><label>NFL team (optional)</label><input id="keeper-team" placeholder="CIN"></div>
-      <div><label>Cost</label><input id="keeper-cost" placeholder="e.g. Round 4, or $18"></div>
+      <div><label>Current cost</label><input id="keeper-cost" placeholder="e.g. Round 4, or $18"></div>
     </div>
+    <label>Future cost (what it costs to keep them again next year)</label>
+    <input id="keeper-future-cost" placeholder="e.g. Round 3, or $22">
     <label>Notes (optional)</label>
     <input id="keeper-notes" placeholder="Anything worth remembering about this keeper">
     <button id="keeper-submit">Save keeper</button>
@@ -264,7 +266,7 @@
       const rows = await (await fetch(`/api/keepers/${year}`)).json();
       if(!rows.length){ list.innerHTML = `<div class="sub">No keepers on file for ${year} yet.</div>`; return; }
       list.innerHTML = rows.map(k => `<div class="owner-row" data-id="${k.id}">
-        <span>${k.owner_name} — ${k.player_name}${k.position ? ' ('+k.position+(k.team?', '+k.team:'')+')' : ''}${k.cost ? ' · '+k.cost : ''}</span>
+        <span>${k.owner_name} — ${k.player_name}${k.position ? ' ('+k.position+(k.team?', '+k.team:'')+')' : ''}${k.cost ? ' · '+k.cost : ''}${k.future_cost ? ' → '+k.future_cost+' next yr' : ''}</span>
         <span>
           <button class="secondary" data-edit-id="${k.id}">Edit</button>
           <button data-delete-id="${k.id}">Delete</button>
@@ -291,6 +293,7 @@
     $('#keeper-position').value = row.position || '';
     $('#keeper-team').value = row.team || '';
     $('#keeper-cost').value = row.cost || '';
+    $('#keeper-future-cost').value = row.future_cost || '';
     $('#keeper-notes').value = row.notes || '';
     $('#keeper-submit').textContent = 'Update keeper';
     $('#keeper-cancel-edit').classList.remove('hidden');
@@ -300,7 +303,7 @@
   function resetKeeperForm(){
     editingKeeperId = null;
     $('#keeper-player').value=''; $('#keeper-position').value=''; $('#keeper-team').value='';
-    $('#keeper-cost').value=''; $('#keeper-notes').value='';
+    $('#keeper-cost').value=''; $('#keeper-future-cost').value=''; $('#keeper-notes').value='';
     $('#keeper-submit').textContent = 'Save keeper';
     $('#keeper-cancel-edit').classList.add('hidden');
   }
@@ -333,6 +336,7 @@
         position: $('#keeper-position').value.trim() || null,
         team: $('#keeper-team').value.trim() || null,
         cost: $('#keeper-cost').value.trim() || null,
+        futureCost: $('#keeper-future-cost').value.trim() || null,
         notes: $('#keeper-notes').value.trim() || null
       };
 

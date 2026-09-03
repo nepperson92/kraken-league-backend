@@ -113,3 +113,5 @@ CREATE TABLE IF NOT EXISTS keepers (
   UNIQUE(season_id, owner_id, player_name)
 );
 CREATE INDEX IF NOT EXISTS idx_keepers_season ON keepers(season_id);
+-- Added after initial release: what this keeper will cost if kept again next season
+ALTER TABLE keepers ADD COLUMN IF NOT EXISTS future_cost TEXT;

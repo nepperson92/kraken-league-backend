@@ -11,34 +11,34 @@ async function getOrCreateSeasonByYear(year) {
   return created.rows[0];
 }
 
-async function addOrUpdateKeeper({ year, ownerId, playerName, position, team, cost, notes }) {
+async function addOrUpdateKeeper({ year, ownerId, playerName, position, team, cost, futureCost, notes }) {
   const season = await getOrCreateSeasonByYear(year);
   let sleeperPlayerId = null;
   try { sleeperPlayerId = await players.findPlayerId(playerName, position); } catch (e) { /* non-fatal */ }
 
   const result = await db.query(
-    `INSERT INTO keepers (season_id, owner_id, sleeper_player_id, player_name, position, team, cost, notes)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+    `INSERT INTO keepers (season_id, owner_id, sleeper_player_id, player_name, position, team, cost, future_cost, notes)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
      ON CONFLICT (season_id, owner_id, player_name) DO UPDATE SET
        sleeper_player_id = EXCLUDED.sleeper_player_id, position = EXCLUDED.position,
-       team = EXCLUDED.team, cost = EXCLUDED.cost, notes = EXCLUDED.notes
+       team = EXCLUDED.team, cost = EXCLUDED.cost, future_cost = EXCLUDED.future_cost, notes = EXCLUDED.notes
      RETURNING *`,
-    [season.id, ownerId, sleeperPlayerId, playerName, position || null, team || null, cost || null, notes || null]
+    [season.id, ownerId, sleeperPlayerId, playerName, position || null, team || null, cost || null, futureCost || null, notes || null]
   );
   return result.rows[0];
 }
 
 // Update a specific keeper row directly by id — used for edits, including renaming the player,
 // which the insert-based upsert above can't safely do (name is part of its conflict key).
-async function updateKeeperById(id, { ownerId, playerName, position, team, cost, notes }) {
+async function updateKeeperById(id, { ownerId, playerName, position, team, cost, futureCost, notes }) {
   let sleeperPlayerId = null;
   try { sleeperPlayerId = await players.findPlayerId(playerName, position); } catch (e) { /* non-fatal */ }
   const result = await db.query(
     `UPDATE keepers SET
        owner_id = $1, sleeper_player_id = $2, player_name = $3,
-       position = $4, team = $5, cost = $6, notes = $7
-     WHERE id = $8 RETURNING *`,
-    [ownerId, sleeperPlayerId, playerName, position || null, team || null, cost || null, notes || null, id]
+       position = $4, team = $5, cost = $6, future_cost = $7, notes = $8
+     WHERE id = $9 RETURNING *`,
+    [ownerId, sleeperPlayerId, playerName, position || null, team || null, cost || null, futureCost || null, notes || null, id]
   );
   return result.rows[0] || null;
 }

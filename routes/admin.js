@@ -168,10 +168,10 @@ router.post('/matchup-writeups/regenerate', async (req, res) => {
 
 // ---- Keepers ----
 router.post('/keepers', async (req, res) => {
-  const { year, ownerId, playerName, position, team, cost, notes } = req.body;
+  const { year, ownerId, playerName, position, team, cost, futureCost, notes } = req.body;
   if (!year || !ownerId || !playerName) return res.status(400).json({ error: 'year, ownerId, and playerName are required' });
   try {
-    const keeper = await addOrUpdateKeeper({ year, ownerId, playerName, position, team, cost, notes });
+    const keeper = await addOrUpdateKeeper({ year, ownerId, playerName, position, team, cost, futureCost, notes });
     res.json(keeper);
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -184,10 +184,10 @@ router.delete('/keepers/:id', async (req, res) => {
 });
 
 router.put('/keepers/:id', async (req, res) => {
-  const { ownerId, playerName, position, team, cost, notes } = req.body;
+  const { ownerId, playerName, position, team, cost, futureCost, notes } = req.body;
   if (!ownerId || !playerName) return res.status(400).json({ error: 'ownerId and playerName are required' });
   try {
-    const keeper = await updateKeeperById(req.params.id, { ownerId, playerName, position, team, cost, notes });
+    const keeper = await updateKeeperById(req.params.id, { ownerId, playerName, position, team, cost, futureCost, notes });
     if (!keeper) return res.status(404).json({ error: 'Keeper not found' });
     res.json(keeper);
   } catch (e) {
