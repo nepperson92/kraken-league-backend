@@ -1,0 +1,17 @@
+{
+  "name": "league-history-backend",
+  "version": "1.0.0",
+  "description": "Backend API for tracking a fantasy football league's historical standings and all-time records",
+  "main": "server.js",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "start": "node server.js",
+    "migrate": "node -e \"const fs=require('fs');const {pool}=require('./db');pool.query(fs.readFileSync('./schema.sql','utf8')).then(()=>{console.log('Schema applied');process.exit(0);}).catch(e=>{console.error(e);process.exit(1);})\""
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "pg": "^8.12.0"
+  }
+}

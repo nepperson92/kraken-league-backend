@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>League Hub — Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-void:#0A120D; --bg-panel:#101B14; --bg-panel-raised:#16241B; --line:#26362B;
+    --ink:#EDEBDD; --ink-dim:#8FA091; --ink-faint:#5C6B5F; --accent:#F2A93B;
+    --win:#5FA777; --loss:#C1544A;
+  }
+  *{box-sizing:border-box;}
+  body{background:var(--bg-void); color:var(--ink); font-family:'Inter',sans-serif; margin:0; padding:0;}
+  .wrap{max-width:760px; margin:0 auto; padding:32px 20px 80px;}
+  h1{font-family:'Oswald',sans-serif; font-size:22px; font-weight:600; margin-bottom:4px;}
+  .sub{color:var(--ink-faint); font-size:13px; margin-bottom:28px;}
+  section{background:var(--bg-panel); border:1px solid var(--line); border-top:2px solid var(--accent); padding:22px 24px; margin-bottom:20px;}
+  section h2{font-family:'Oswald',sans-serif; font-size:15px; font-weight:600; margin-bottom:14px;}
+  label{display:block; font-size:12px; color:var(--ink-dim); margin-bottom:4px; margin-top:12px;}
+  input, select{
+    width:100%; background:var(--bg-void); border:1px solid var(--line); color:var(--ink);
+    padding:9px 11px; font-size:14px; font-family:'Inter',sans-serif;
+  }
+  input:focus, select:focus{outline:none; border-color:var(--accent);}
+  .row{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
+  .checks{display:flex; flex-wrap:wrap; gap:14px; margin-top:14px;}
+  .checks label{display:flex; align-items:center; gap:6px; font-size:13px; color:var(--ink); margin:0;}
+  .checks input{width:auto;}
+  button{
+    margin-top:16px; background:var(--accent); color:var(--bg-void); border:none; padding:10px 18px;
+    font-family:'Oswald',sans-serif; font-weight:600; font-size:13.5px; cursor:pointer;
+  }
+  button:hover{background:#ffb94f;}
+  button.secondary{background:var(--bg-panel-raised); color:var(--ink); border:1px solid var(--line);}
+  .msg{font-size:13px; margin-top:12px; padding:10px 12px; display:none;}
+  .msg.ok{display:block; background:rgba(95,167,119,0.12); color:var(--win); border:1px solid rgba(95,167,119,0.3);}
+  .msg.err{display:block; background:rgba(193,84,74,0.12); color:var(--loss); border:1px solid rgba(193,84,74,0.3);}
+  pre{background:var(--bg-void); border:1px solid var(--line); padding:12px; font-size:12px; overflow:auto; max-height:220px; margin-top:12px;}
+  #gate{max-width:360px; margin:120px auto; text-align:center;}
+  #gate input{margin:16px 0;}
+</style>
+</head>
+<body>
+
+<div id="gate">
+  <h1>League Hub Admin</h1>
+  <p class="sub">Enter the admin password to continue.</p>
+  <input id="pw-input" type="password" placeholder="Admin password">
+  <button id="pw-submit">Enter</button>
+  <div id="pw-error" class="msg err"></div>
+</div>
+
+<div class="wrap hidden" id="panel" style="display:none;">
+  <h1>League Hub Admin</h1>
+  <p class="sub">Manage owners, backfill old seasons, and sync current data from Sleeper.</p>
+
+  <section>
+    <h2>Sync from Sleeper</h2>
+    <p class="sub" style="margin-bottom:0;">Enter your current Sleeper league ID. This will walk back through every past season this league has run on Sleeper and save the results.</p>
+    <label>Sleeper league ID</label>
+    <input id="sync-league-id" placeholder="e.g. 998234511092838400">
+    <button id="sync-history-btn">Sync full Sleeper history</button>
+    <button class="secondary" id="sync-current-btn">Sync just this season</button>
+    <div id="sync-msg" class="msg"></div>
+    <pre id="sync-output" style="display:none;"></pre>
+  </section>
+
+  <section>
+    <h2>Draft grades</h2>
+    <p class="sub" style="margin-bottom:0;">Paste a pre-draft rankings list (one player per line: <code>rank,name,position,team</code> — position and team are optional). Grades compute automatically the first time anyone opens the Grades tab after the draft finishes, using whatever list is on file for that year.</p>
+    <div class="row">
+      <div><label>Year</label><input id="rankings-year" type="number" placeholder="2026"></div>
+      <div><label>Source label (optional)</label><input id="rankings-source" placeholder="e.g. FantasyPros PPR"></div>
+    </div>
+    <label>Rankings (one per line)</label>
+    <input id="rankings-csv-hint" disabled placeholder="Use the box below — this is just a label" style="display:none;">
+    <textarea id="rankings-csv" rows="8" style="width:100%; background:var(--bg-void); border:1px solid var(--line); color:var(--ink); padding:10px 11px; font-family:'Inter',sans-serif; font-size:13px; margin-top:6px;" placeholder="1,Ja'Marr Chase,WR,CIN&#10;2,Bijan Robinson,RB,ATL&#10;3,CeeDee Lamb,WR,DAL"></textarea>
+    <button id="rankings-import-btn">Import rankings</button>
+    <button class="secondary" id="grades-recompute-btn">Force recompute grades</button>
+    <div id="rankings-msg" class="msg"></div>
+    <pre id="rankings-output" style="display:none;"></pre>
+  </section>
+
+  <section>
+    <h2>Owners</h2>
+    <label>Name</label>
+    <input id="owner-name" placeholder="Owner's name">
+    <label>Sleeper user ID (optional — links auto-sync to this owner)</label>
+    <input id="owner-sleeper-id" placeholder="Optional">
+    <button id="owner-submit">Add owner</button>
+    <div id="owner-msg" class="msg"></div>
+  </section>
+
+  <section>
+    <h2>Add a pre-Sleeper season</h2>
+    <div class="row">
+      <div><label>Year</label><input id="season-year" type="number" placeholder="2018"></div>
+      <div><label>Platform</label>
+        <select id="season-platform">
+          <option value="espn">ESPN</option>
+          <option value="yahoo">Yahoo</option>
+          <option value="paper">Paper / manual</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+    </div>
+    <label>Number of teams</label>
+    <input id="season-num-teams" type="number" placeholder="10">
+    <button id="season-submit">Save season</button>
+    <div id="season-msg" class="msg"></div>
+  </section>
+
+  <section>
+    <h2>Add a team's result for a season</h2>
+    <p class="sub" style="margin-bottom:0;">Use this to fill in each owner's record for a pre-Sleeper season.</p>
+    <div class="row">
+      <div><label>Year</label><input id="result-year" type="number" placeholder="2018"></div>
+      <div><label>Owner name (must match an owner above)</label><input id="result-owner" placeholder="Owner's name"></div>
+    </div>
+    <div class="row">
+      <div><label>Wins</label><input id="result-wins" type="number" value="0"></div>
+      <div><label>Losses</label><input id="result-losses" type="number" value="0"></div>
+    </div>
+    <div class="row">
+      <div><label>Ties</label><input id="result-ties" type="number" value="0"></div>
+      <div><label>Regular season rank</label><input id="result-rank" type="number" placeholder="1"></div>
+    </div>
+    <div class="row">
+      <div><label>Playoff wins</label><input id="result-po-wins" type="number" value="0"></div>
+      <div><label>Playoff losses</label><input id="result-po-losses" type="number" value="0"></div>
+    </div>
+    <div class="checks">
+      <label><input type="checkbox" id="result-made-playoffs"> Made playoffs</label>
+      <label><input type="checkbox" id="result-made-champ"> Made championship</label>
+      <label><input type="checkbox" id="result-won-champ"> Won championship</label>
+      <label><input type="checkbox" id="result-last"> Finished last</label>
+    </div>
+    <button id="result-submit">Save result</button>
+    <div id="result-msg" class="msg"></div>
+  </section>
+</div>
+
+<script>
+(function(){
+  let API_BASE = '';
+  let ADMIN_PW = '';
+  const $ = s => document.querySelector(s);
+
+  $('#pw-submit').addEventListener('click', async () => {
+    ADMIN_PW = $('#pw-input').value;
+    // quick check: try a harmless admin call
+    const res = await fetch('/api/admin/owners', {
+      method: 'POST', headers: headers(),
+      body: JSON.stringify({ name: '__ping__' })
+    });
+    if(res.status === 401){
+      $('#pw-error').textContent = 'Incorrect password.';
+      $('#pw-error').style.display = 'block';
+      return;
+    }
+    // clean up the ping owner if it got created
+    if(res.ok){
+      const created = await res.json();
+      await fetch(`/api/admin/owners/${created.id}`, { method:'PUT', headers: headers(), body: JSON.stringify({ name: '__ping__deleted__' }) });
+    }
+    document.getElementById('gate').style.display = 'none';
+    document.getElementById('panel').style.display = 'block';
+  });
+
+  function headers(){
+    return { 'Content-Type': 'application/json', 'x-admin-password': ADMIN_PW };
+  }
+  function showMsg(el, ok, text){
+    el.className = 'msg ' + (ok ? 'ok' : 'err');
+    el.textContent = text;
+  }
+
+  // ---- Sync ----
+  $('#sync-history-btn').addEventListener('click', () => runSync('/api/admin/sync/history'));
+  $('#sync-current-btn').addEventListener('click', () => runSync('/api/admin/sync/season'));
+
+  async function runSync(path){
+    const leagueId = $('#sync-league-id').value.trim();
+    const msg = $('#sync-msg'), out = $('#sync-output');
+    if(!leagueId){ showMsg(msg, false, 'Enter a league ID first.'); return; }
+    showMsg(msg, true, 'Syncing… this can take a moment.');
+    out.style.display = 'none';
+    try{
+      const res = await fetch(path, { method:'POST', headers: headers(), body: JSON.stringify({ leagueId }) });
+      const data = await res.json();
+      if(!res.ok) throw new Error(data.error || 'Sync failed');
+      showMsg(msg, true, 'Synced successfully.');
+      out.style.display = 'block';
+      out.textContent = JSON.stringify(data.result || data.results, null, 2);
+    }catch(e){
+      showMsg(msg, false, e.message);
+    }
+  }
+
+  // ---- Draft grades ----
+  $('#rankings-import-btn').addEventListener('click', async () => {
+    const year = parseInt($('#rankings-year').value, 10);
+    const csv = $('#rankings-csv').value.trim();
+    const sourceLabel = $('#rankings-source').value.trim();
+    const msg = $('#rankings-msg'), out = $('#rankings-output');
+    if(!year || !csv){ showMsg(msg, false, 'Year and a rankings list are required.'); return; }
+    try{
+      const res = await fetch('/api/admin/draft-rankings/import', { method:'POST', headers: headers(), body: JSON.stringify({ year, csv, sourceLabel }) });
+      const data = await res.json();
+      if(!res.ok) throw new Error(data.error || 'Import failed');
+      showMsg(msg, true, `Matched ${data.matched} of ${data.total} players.`);
+      out.style.display = data.unmatched && data.unmatched.length ? 'block' : 'none';
+      if(data.unmatched && data.unmatched.length) out.textContent = 'Could not match:\n' + data.unmatched.join('\n');
+    }catch(e){ showMsg(msg, false, e.message); }
+  });
+
+  $('#grades-recompute-btn').addEventListener('click', async () => {
+    const year = parseInt($('#rankings-year').value, 10);
+    const msg = $('#rankings-msg');
+    if(!year){ showMsg(msg, false, 'Enter a year above first.'); return; }
+    showMsg(msg, true, 'Recomputing…');
+    try{
+      const res = await fetch('/api/admin/draft-grades/recompute', { method:'POST', headers: headers(), body: JSON.stringify({ year }) });
+      const data = await res.json();
+      if(data.ready === false){ showMsg(msg, false, data.reason); return; }
+      if(!res.ok) throw new Error(data.error || 'Recompute failed');
+      showMsg(msg, true, `Recomputed grades for ${data.results.length} teams.`);
+    }catch(e){ showMsg(msg, false, e.message); }
+  });
+
+  // ---- Owners ----
+  $('#owner-submit').addEventListener('click', async () => {
+    const name = $('#owner-name').value.trim();
+    const sleeperId = $('#owner-sleeper-id').value.trim();
+    const msg = $('#owner-msg');
+    if(!name){ showMsg(msg, false, 'Name is required.'); return; }
+    try{
+      const res = await fetch('/api/admin/owners', { method:'POST', headers: headers(), body: JSON.stringify({ name, sleeper_user_id: sleeperId || null }) });
+      const data = await res.json();
+      if(!res.ok) throw new Error(data.error || 'Could not add owner');
+      showMsg(msg, true, `Added ${data.name}.`);
+      $('#owner-name').value=''; $('#owner-sleeper-id').value='';
+    }catch(e){ showMsg(msg, false, e.message); }
+  });
+
+  // ---- Season ----
+  $('#season-submit').addEventListener('click', async () => {
+    const year = parseInt($('#season-year').value, 10);
+    const platform = $('#season-platform').value;
+    const num_teams = parseInt($('#season-num-teams').value, 10) || null;
+    const msg = $('#season-msg');
+    if(!year){ showMsg(msg, false, 'Enter a year.'); return; }
+    try{
+      const res = await fetch('/api/admin/seasons', { method:'POST', headers: headers(), body: JSON.stringify({ year, platform, num_teams }) });
+      const data = await res.json();
+      if(!res.ok) throw new Error(data.error || 'Could not save season');
+      showMsg(msg, true, `Saved ${year} (${platform}).`);
+    }catch(e){ showMsg(msg, false, e.message); }
+  });
+
+  // ---- Season result ----
+  $('#result-submit').addEventListener('click', async () => {
+    const msg = $('#result-msg');
+    const year = parseInt($('#result-year').value, 10);
+    const ownerName = $('#result-owner').value.trim();
+    if(!year || !ownerName){ showMsg(msg, false, 'Year and owner name are required.'); return; }
+    try{
+      // resolve season id and owner id by name/year via the public API
+      const seasons = await (await fetch('/api/seasons')).json();
+      const season = seasons.find(s => s.year === year);
+      if(!season) throw new Error(`No season saved for ${year} yet — add it above first.`);
+      const owners = await (await fetch('/api/owners')).json();
+      const owner = owners.find(o => o.name.toLowerCase() === ownerName.toLowerCase());
+      if(!owner) throw new Error(`No owner named "${ownerName}" — add them above first.`);
+
+      const payload = {
+        season_id: season.id, owner_id: owner.id,
+        wins: parseInt($('#result-wins').value,10)||0,
+        losses: parseInt($('#result-losses').value,10)||0,
+        ties: parseInt($('#result-ties').value,10)||0,
+        regular_season_rank: parseInt($('#result-rank').value,10) || null,
+        playoff_wins: parseInt($('#result-po-wins').value,10)||0,
+        playoff_losses: parseInt($('#result-po-losses').value,10)||0,
+        made_playoffs: $('#result-made-playoffs').checked,
+        made_championship: $('#result-made-champ').checked,
+        won_championship: $('#result-won-champ').checked,
+        last_place: $('#result-last').checked
+      };
+      const res = await fetch('/api/admin/season-results', { method:'POST', headers: headers(), body: JSON.stringify(payload) });
+      const data = await res.json();
+      if(!res.ok) throw new Error(data.error || 'Could not save result');
+      showMsg(msg, true, `Saved ${ownerName}'s ${year} result.`);
+    }catch(e){ showMsg(msg, false, e.message); }
+  });
+})();
+</script>
+</body>
+</html>
