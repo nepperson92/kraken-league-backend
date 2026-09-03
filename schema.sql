@@ -115,3 +115,10 @@ CREATE TABLE IF NOT EXISTS keepers (
 CREATE INDEX IF NOT EXISTS idx_keepers_season ON keepers(season_id);
 -- Added after initial release: what this keeper will cost if kept again next season
 ALTER TABLE keepers ADD COLUMN IF NOT EXISTS future_cost TEXT;
+
+-- Simple key-value config store — currently just holds the active Sleeper league ID,
+-- so it can be updated from the admin panel without redeploying the site.
+CREATE TABLE IF NOT EXISTS settings (
+  key TEXT PRIMARY KEY,
+  value TEXT
+);

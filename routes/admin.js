@@ -4,6 +4,7 @@ const db = require('../db');
 const { syncSeason, syncAllSleeperHistory, syncMatchupHistory } = require('../sleeperSync');
 const { parseRankingsCSV, importRankings, computeAndStore } = require('../draftGrading');
 const { clearWriteups, generateMatchupWriteups } = require('../writeupGenerator');
+const { setSetting } = require('../settings');
 const { addOrUpdateKeeper, updateKeeperById } = require('../keepers');
 
 function requireAdmin(req, res, next) {
@@ -193,6 +194,16 @@ router.put('/keepers/:id', async (req, res) => {
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
+});
+
+// Update the active Sleeper league ID the site loads by default
+router.post('/config', async (req, res) => {
+  const { leagueId } = req.body;
+  if (!leagueId || !/^\d+$/.test(String(leagueId))) {
+    return res.status(400).json({ error: 'leagueId must be a numeric Sleeper league ID' });
+  }
+  await setSetting('current_league_id', String(leagueId));
+  res.json({ ok: true, leagueId: String(leagueId) });
 });
 
 module.exports = router;

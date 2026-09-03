@@ -3,6 +3,7 @@ const router = express.Router();
 const db = require('../db');
 const { generateMatchupWriteups } = require('../writeupGenerator');
 const { listKeepers } = require('../keepers');
+const { getSetting } = require('../settings');
 
 // All owners, with counts so it's obvious which ones actually have data attached
 router.get('/owners', async (req, res) => {
@@ -123,6 +124,12 @@ router.get('/keepers/:year', async (req, res) => {
   const year = parseInt(req.params.year, 10);
   const rows = await listKeepers(year);
   res.json(rows);
+});
+
+// Site-wide config — currently just the active Sleeper league ID
+router.get('/config', async (req, res) => {
+  const leagueId = await getSetting('current_league_id');
+  res.json({ leagueId: leagueId || null });
 });
 
 module.exports = router;

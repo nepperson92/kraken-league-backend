@@ -62,6 +62,15 @@
   <p class="sub">Manage owners, backfill old seasons, and sync current data from Sleeper.</p>
 
   <section>
+    <h2>Website league ID</h2>
+    <p class="sub" style="margin-bottom:0;">This is the Sleeper league ID your website loads by default for every visitor — no setup screen, just straight to the live standings. Update this once a year when Sleeper issues a new league ID for the new season (same ID you'd use for syncing below).</p>
+    <label>Current Sleeper league ID</label>
+    <input id="site-league-id" placeholder="e.g. 998234511092838400">
+    <button id="site-league-save">Save</button>
+    <div id="site-league-msg" class="msg"></div>
+  </section>
+
+  <section>
     <h2>Sync from Sleeper</h2>
     <p class="sub" style="margin-bottom:0;">Enter your current Sleeper league ID. This will walk back through every past season this league has run on Sleeper and save the results.</p>
     <label>Sleeper league ID</label>
@@ -191,6 +200,7 @@
     document.getElementById('panel').style.display = 'block';
     loadOwnersList();
     loadKeepersList();
+    loadSiteLeagueId();
   });
 
   function headers(){
@@ -200,6 +210,25 @@
     el.className = 'msg ' + (ok ? 'ok' : 'err');
     el.textContent = text;
   }
+
+  // ---- Website league ID ----
+  async function loadSiteLeagueId(){
+    try{
+      const data = await (await fetch('/api/config')).json();
+      if(data.leagueId) $('#site-league-id').value = data.leagueId;
+    }catch(e){ /* leave blank */ }
+  }
+  $('#site-league-save').addEventListener('click', async () => {
+    const msg = $('#site-league-msg');
+    const leagueId = $('#site-league-id').value.trim();
+    if(!leagueId){ showMsg(msg, false, 'Enter a league ID.'); return; }
+    try{
+      const res = await fetch('/api/admin/config', { method:'POST', headers: headers(), body: JSON.stringify({ leagueId }) });
+      const data = await res.json();
+      if(!res.ok) throw new Error(data.error || 'Could not save');
+      showMsg(msg, true, `Saved. The website will load league ${leagueId} by default.`);
+    }catch(e){ showMsg(msg, false, e.message); }
+  });
 
   // ---- Sync ----
   $('#sync-history-btn').addEventListener('click', () => runSync('/api/admin/sync/history'));
