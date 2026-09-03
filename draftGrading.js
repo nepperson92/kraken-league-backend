@@ -17,7 +17,7 @@ function parseRankingsCSV(text) {
   for (const line of lines) {
     const parts = line.split(/\t|,/).map(p => p.trim()).filter(p => p !== '');
     if (parts.length < 2) continue;
-    const rank = parseInt(parts[0], 10);
+    const rank = parseFloat(parts[0]);
     if (Number.isNaN(rank)) continue; // skip header rows etc.
     rows.push({
       rank,

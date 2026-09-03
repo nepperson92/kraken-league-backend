@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS draft_rankings (
   player_name TEXT,
   position TEXT,
   team TEXT,
-  overall_rank INT NOT NULL,
+  overall_rank NUMERIC NOT NULL,
   source_label TEXT,
   UNIQUE(season_id, sleeper_player_id)
 );
@@ -122,3 +122,6 @@ CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
   value TEXT
 );
+
+-- Added after initial release: rankings need decimal precision (e.g. ADP 1.4), not whole numbers
+ALTER TABLE draft_rankings ALTER COLUMN overall_rank TYPE NUMERIC;

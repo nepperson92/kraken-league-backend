@@ -341,7 +341,7 @@
     try{
       const res = await fetch(`/api/admin/draft-rankings/${row.id}`, {
         method:'PUT', headers: headers(),
-        body: JSON.stringify({ rank: parseInt(newRank,10), playerName: newName, position: newPos||null, team: newTeam||null })
+        body: JSON.stringify({ rank: parseFloat(newRank), playerName: newName, position: newPos||null, team: newTeam||null })
       });
       if(!res.ok) throw new Error('Could not save changes');
       loadRankingsList();
