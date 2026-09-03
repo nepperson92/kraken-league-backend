@@ -30,7 +30,7 @@ async function addOrUpdateKeeper({ year, ownerId, playerName, position, team, co
 
 async function listKeepers(year) {
   const result = await db.query(`
-    SELECT k.*, o.name AS owner_name FROM keepers k
+    SELECT k.*, o.name AS owner_name, o.sleeper_user_id FROM keepers k
     JOIN owners o ON o.id = k.owner_id
     JOIN seasons s ON s.id = k.season_id
     WHERE s.year = $1
