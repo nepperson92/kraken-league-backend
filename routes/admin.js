@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const { syncSeason, syncAllSleeperHistory, syncMatchupHistory } = require('../sleeperSync');
-const { parseRankingsCSV, importRankings, computeAndStore, updateRankingById, deleteRankingById } = require('../draftGrading');
+const { parseRankingsCSV, importRankings, computeAndStore, updateRankingById, deleteRankingById, deleteAllRankingsForYear } = require('../draftGrading');
 const { clearWriteups, generateMatchupWriteups } = require('../writeupGenerator');
 const { setSetting } = require('../settings');
 const { addOrUpdateKeeper, updateKeeperById } = require('../keepers');
@@ -170,6 +170,18 @@ router.put('/draft-rankings/:id', async (req, res) => {
 router.delete('/draft-rankings/:id', async (req, res) => {
   await deleteRankingById(req.params.id);
   res.json({ ok: true });
+});
+
+// Wipe every ranking entry for a given year — for starting a re-import clean
+router.delete('/draft-rankings', async (req, res) => {
+  const year = parseInt(req.query.year, 10);
+  if (!year) return res.status(400).json({ error: 'year query param is required' });
+  try {
+    const count = await deleteAllRankingsForYear(year);
+    res.json({ ok: true, deleted: count });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // Force-regenerate this week's matchup writeups (e.g. lineups changed, or you just want a redo)

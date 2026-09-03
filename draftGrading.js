@@ -273,4 +273,12 @@ async function deleteRankingById(id) {
   await db.query('DELETE FROM draft_rankings WHERE id = $1', [id]);
 }
 
-module.exports = { parseRankingsCSV, importRankings, computeDraftGrades, computeAndStore, getRankings, updateRankingById, deleteRankingById };
+async function deleteAllRankingsForYear(year) {
+  const result = await db.query(
+    `DELETE FROM draft_rankings WHERE season_id = (SELECT id FROM seasons WHERE year = $1) RETURNING id`,
+    [year]
+  );
+  return result.rows.length;
+}
+
+module.exports = { parseRankingsCSV, importRankings, computeDraftGrades, computeAndStore, getRankings, updateRankingById, deleteRankingById, deleteAllRankingsForYear };

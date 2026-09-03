@@ -99,6 +99,7 @@
     <div style="margin-top:22px; padding-top:18px; border-top:1px solid var(--line);">
       <label>Rankings currently on file for this year</label>
       <button class="secondary" id="rankings-list-refresh" style="margin-top:6px;">Show list</button>
+      <button id="rankings-delete-all" style="margin-top:6px; background:transparent; border:1px solid var(--loss); color:var(--loss);">Delete all for this year</button>
       <div id="rankings-list" style="margin-top:10px; max-height:400px; overflow-y:auto;"></div>
     </div>
   </section>
@@ -316,6 +317,19 @@
     }
   }
   $('#rankings-list-refresh').addEventListener('click', loadRankingsList);
+
+  $('#rankings-delete-all').addEventListener('click', async () => {
+    const year = parseInt($('#rankings-year').value, 10) || new Date().getFullYear();
+    if(!confirm(`Delete ALL pre-draft rankings for ${year}? This can't be undone — you'll need to re-import the list to grade drafts for that year.`)) return;
+    const msg = $('#rankings-msg');
+    try{
+      const res = await fetch(`/api/admin/draft-rankings?year=${year}`, { method:'DELETE', headers: headers() });
+      const data = await res.json();
+      if(!res.ok) throw new Error(data.error || 'Could not delete');
+      showMsg(msg, true, `Deleted ${data.deleted} ranking(s) for ${year}.`);
+      loadRankingsList();
+    }catch(e){ showMsg(msg, false, e.message); }
+  });
 
   async function editRanking(row, year){
     const newRank = prompt('Rank:', row.overall_rank);
