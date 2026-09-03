@@ -97,3 +97,19 @@ CREATE TABLE IF NOT EXISTS matchup_writeups (
   generated_at TIMESTAMPTZ DEFAULT now(),
   UNIQUE(sleeper_league_id, year, week, owner_a_id, owner_b_id)
 );
+
+-- Manually-declared keepers per team per season, with whatever cost convention your league uses
+CREATE TABLE IF NOT EXISTS keepers (
+  id SERIAL PRIMARY KEY,
+  season_id INT NOT NULL REFERENCES seasons(id) ON DELETE CASCADE,
+  owner_id INT NOT NULL REFERENCES owners(id) ON DELETE CASCADE,
+  sleeper_player_id TEXT,
+  player_name TEXT NOT NULL,
+  position TEXT,
+  team TEXT,
+  cost TEXT,
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(season_id, owner_id, player_name)
+);
+CREATE INDEX IF NOT EXISTS idx_keepers_season ON keepers(season_id);

@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const { generateMatchupWriteups } = require('../writeupGenerator');
+const { listKeepers } = require('../keepers');
 
 // All owners
 router.get('/owners', async (req, res) => {
@@ -109,6 +110,13 @@ router.get('/matchup-writeups', async (req, res) => {
   } catch (e) {
     res.status(500).json({ ready: false, reason: e.message });
   }
+});
+
+// Keepers declared for a season, grouped by owner
+router.get('/keepers/:year', async (req, res) => {
+  const year = parseInt(req.params.year, 10);
+  const rows = await listKeepers(year);
+  res.json(rows);
 });
 
 module.exports = router;
