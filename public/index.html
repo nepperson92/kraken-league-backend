@@ -91,6 +91,7 @@
   <section>
     <h2>Keepers</h2>
     <p class="sub" style="margin-bottom:0;">Mark which players each team is keeping for a season, and whatever cost your league charges for it (a draft round, an auction dollar amount, whatever convention you use).</p>
+    <div id="keepers-list" style="margin:14px 0;"></div>
     <div class="row">
       <div><label>Year (season they're kept into)</label><input id="keeper-year" type="number" placeholder="2026"></div>
       <div><label>Owner name</label><input id="keeper-owner" placeholder="Must match an owner above"></div>
@@ -106,6 +107,7 @@
     <label>Notes (optional)</label>
     <input id="keeper-notes" placeholder="Anything worth remembering about this keeper">
     <button id="keeper-submit">Save keeper</button>
+    <button class="secondary hidden" id="keeper-cancel-edit">Cancel edit</button>
     <div id="keeper-msg" class="msg"></div>
   </section>
 
@@ -186,6 +188,7 @@
     document.getElementById('gate').style.display = 'none';
     document.getElementById('panel').style.display = 'block';
     loadOwnersList();
+    loadKeepersList();
   });
 
   function headers(){
@@ -250,6 +253,70 @@
   });
 
   // ---- Keepers ----
+  let editingKeeperId = null;
+
+  async function loadKeepersList(){
+    const list = $('#keepers-list');
+    const year = parseInt($('#keeper-year').value, 10) || new Date().getFullYear();
+    if(!$('#keeper-year').value) $('#keeper-year').value = year;
+    list.innerHTML = 'Loading keepers for ' + year + '…';
+    try{
+      const rows = await (await fetch(`/api/keepers/${year}`)).json();
+      if(!rows.length){ list.innerHTML = `<div class="sub">No keepers on file for ${year} yet.</div>`; return; }
+      list.innerHTML = rows.map(k => `<div class="owner-row" data-id="${k.id}">
+        <span>${k.owner_name} — ${k.player_name}${k.position ? ' ('+k.position+(k.team?', '+k.team:'')+')' : ''}${k.cost ? ' · '+k.cost : ''}</span>
+        <span>
+          <button class="secondary" data-edit-id="${k.id}">Edit</button>
+          <button data-delete-id="${k.id}">Delete</button>
+        </span>
+      </div>`).join('');
+      list.querySelectorAll('button[data-edit-id]').forEach(btn => {
+        const row = rows.find(r => String(r.id) === btn.dataset.editId);
+        btn.addEventListener('click', () => startEditKeeper(row));
+      });
+      list.querySelectorAll('button[data-delete-id]').forEach(btn => {
+        btn.addEventListener('click', () => deleteKeeper(btn.dataset.deleteId));
+      });
+    }catch(e){
+      list.innerHTML = '<div class="sub">Could not load keepers.</div>';
+    }
+  }
+  $('#keeper-year').addEventListener('change', loadKeepersList);
+
+  function startEditKeeper(row){
+    editingKeeperId = row.id;
+    $('#keeper-year').value = row.year;
+    $('#keeper-owner').value = row.owner_name;
+    $('#keeper-player').value = row.player_name;
+    $('#keeper-position').value = row.position || '';
+    $('#keeper-team').value = row.team || '';
+    $('#keeper-cost').value = row.cost || '';
+    $('#keeper-notes').value = row.notes || '';
+    $('#keeper-submit').textContent = 'Update keeper';
+    $('#keeper-cancel-edit').classList.remove('hidden');
+    $('#keeper-owner').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  function resetKeeperForm(){
+    editingKeeperId = null;
+    $('#keeper-player').value=''; $('#keeper-position').value=''; $('#keeper-team').value='';
+    $('#keeper-cost').value=''; $('#keeper-notes').value='';
+    $('#keeper-submit').textContent = 'Save keeper';
+    $('#keeper-cancel-edit').classList.add('hidden');
+  }
+  $('#keeper-cancel-edit').addEventListener('click', resetKeeperForm);
+
+  async function deleteKeeper(id){
+    if(!confirm('Delete this keeper entry?')) return;
+    const msg = $('#keeper-msg');
+    try{
+      const res = await fetch(`/api/admin/keepers/${id}`, { method:'DELETE', headers: headers() });
+      if(!res.ok) throw new Error('Could not delete keeper');
+      showMsg(msg, true, 'Deleted.');
+      loadKeepersList();
+    }catch(e){ showMsg(msg, false, e.message); }
+  }
+
   $('#keeper-submit').addEventListener('click', async () => {
     const msg = $('#keeper-msg');
     const year = parseInt($('#keeper-year').value, 10);
@@ -261,18 +328,25 @@
       const owner = owners.find(o => o.name.toLowerCase() === ownerName.toLowerCase());
       if(!owner) throw new Error(`No owner named "${ownerName}" — add them above first.`);
 
-      const payload = {
-        year, ownerId: owner.id, playerName,
+      const fields = {
+        ownerId: owner.id, playerName,
         position: $('#keeper-position').value.trim() || null,
         team: $('#keeper-team').value.trim() || null,
         cost: $('#keeper-cost').value.trim() || null,
         notes: $('#keeper-notes').value.trim() || null
       };
-      const res = await fetch('/api/admin/keepers', { method:'POST', headers: headers(), body: JSON.stringify(payload) });
+
+      let res;
+      if(editingKeeperId){
+        res = await fetch(`/api/admin/keepers/${editingKeeperId}`, { method:'PUT', headers: headers(), body: JSON.stringify(fields) });
+      } else {
+        res = await fetch('/api/admin/keepers', { method:'POST', headers: headers(), body: JSON.stringify({ year, ...fields }) });
+      }
       const data = await res.json();
       if(!res.ok) throw new Error(data.error || 'Could not save keeper');
-      showMsg(msg, true, `Saved ${playerName} as a keeper for ${ownerName}.`);
-      $('#keeper-player').value=''; $('#keeper-position').value=''; $('#keeper-team').value=''; $('#keeper-cost').value=''; $('#keeper-notes').value='';
+      showMsg(msg, true, editingKeeperId ? `Updated ${playerName}.` : `Saved ${playerName} as a keeper for ${ownerName}.`);
+      resetKeeperForm();
+      loadKeepersList();
     }catch(e){ showMsg(msg, false, e.message); }
   });
 

@@ -28,6 +28,26 @@ async function addOrUpdateKeeper({ year, ownerId, playerName, position, team, co
   return result.rows[0];
 }
 
+// Update a specific keeper row directly by id — used for edits, including renaming the player,
+// which the insert-based upsert above can't safely do (name is part of its conflict key).
+async function updateKeeperById(id, { ownerId, playerName, position, team, cost, notes }) {
+  let sleeperPlayerId = null;
+  try { sleeperPlayerId = await players.findPlayerId(playerName, position); } catch (e) { /* non-fatal */ }
+  const result = await db.query(
+    `UPDATE keepers SET
+       owner_id = $1, sleeper_player_id = $2, player_name = $3,
+       position = $4, team = $5, cost = $6, notes = $7
+     WHERE id = $8 RETURNING *`,
+    [ownerId, sleeperPlayerId, playerName, position || null, team || null, cost || null, notes || null, id]
+  );
+  return result.rows[0] || null;
+}
+
+async function getKeeperById(id) {
+  const result = await db.query('SELECT * FROM keepers WHERE id = $1', [id]);
+  return result.rows[0] || null;
+}
+
 async function listKeepers(year) {
   const result = await db.query(`
     SELECT k.*, o.name AS owner_name, o.sleeper_user_id FROM keepers k
@@ -39,4 +59,4 @@ async function listKeepers(year) {
   return result.rows;
 }
 
-module.exports = { addOrUpdateKeeper, listKeepers, getOrCreateSeasonByYear };
+module.exports = { addOrUpdateKeeper, updateKeeperById, getKeeperById, listKeepers, getOrCreateSeasonByYear };

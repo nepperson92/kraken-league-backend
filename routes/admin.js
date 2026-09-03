@@ -4,7 +4,7 @@ const db = require('../db');
 const { syncSeason, syncAllSleeperHistory, syncMatchupHistory } = require('../sleeperSync');
 const { parseRankingsCSV, importRankings, computeAndStore } = require('../draftGrading');
 const { clearWriteups, generateMatchupWriteups } = require('../writeupGenerator');
-const { addOrUpdateKeeper } = require('../keepers');
+const { addOrUpdateKeeper, updateKeeperById } = require('../keepers');
 
 function requireAdmin(req, res, next) {
   const provided = req.header('x-admin-password');
@@ -181,6 +181,18 @@ router.post('/keepers', async (req, res) => {
 router.delete('/keepers/:id', async (req, res) => {
   await db.query('DELETE FROM keepers WHERE id = $1', [req.params.id]);
   res.json({ ok: true });
+});
+
+router.put('/keepers/:id', async (req, res) => {
+  const { ownerId, playerName, position, team, cost, notes } = req.body;
+  if (!ownerId || !playerName) return res.status(400).json({ error: 'ownerId and playerName are required' });
+  try {
+    const keeper = await updateKeeperById(req.params.id, { ownerId, playerName, position, team, cost, notes });
+    if (!keeper) return res.status(404).json({ error: 'Keeper not found' });
+    res.json(keeper);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 module.exports = router;
