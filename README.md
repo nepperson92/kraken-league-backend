@@ -105,7 +105,26 @@ was drafted, weighted more heavily in early rounds) and **roster construction** 
 each team addressed every starting position their league requires). It's a heuristic, not
 a certified football scout — treat it as a fun team-vs-team bragging-rights number, not gospel.
 
+## Weekly matchup recaps
 
+Each week, every matchup gets a short AI-written preview — current starters (with injury
+flags), season and career records, and head-to-head history between the two managers,
+all handed to Claude to write up in a couple of fun paragraphs. It's cached per matchup
+per week, so it's written once no matter how many people check the site.
+
+**Setup:** add an `ANTHROPIC_API_KEY` environment variable to the backend (get one from
+[console.anthropic.com](https://console.anthropic.com/settings/keys)). That's it — recaps
+generate automatically the first time anyone opens the Weekly Recap tab for a given week.
+
+Head-to-head history comes from `matchup_results`, which fills in automatically whenever
+you run a Sleeper sync (both the full-history sync and the single-season sync now pull
+every week's matchups, not just final standings).
+
+If a lineup changes after a recap's already been generated (a late scratch, a Thursday
+night true-up), use `POST /api/admin/matchup-writeups/regenerate` with
+`{ leagueId, year, week }` to clear the cache and write a fresh one.
+
+## API reference
 
 **Public (read-only):**
 - `GET /api/owners` — all owners
@@ -114,6 +133,8 @@ a certified football scout — treat it as a fun team-vs-team bragging-rights nu
 - `GET /api/owners/:id/career` — one owner's full history
 - `GET /api/draft-grades/:year` — grades + analysis for every team's draft that year
   (auto-computes and caches on first request once a completed draft and rankings both exist)
+- `GET /api/matchup-writeups?leagueId=...&week=...` — AI-written previews for every
+  matchup that week (auto-generates and caches on first request)
 
 **Admin (require header `x-admin-password: <ADMIN_PASSWORD>`):**
 - `POST /api/admin/owners` — add an owner
@@ -121,10 +142,11 @@ a certified football scout — treat it as a fun team-vs-team bragging-rights nu
 - `POST /api/admin/seasons` — add/update a season
 - `POST /api/admin/season-results` — add/update one owner's result for a season
 - `DELETE /api/admin/season-results/:id` — remove a result
-- `POST /api/admin/sync/season` — sync one Sleeper season by `leagueId`
+- `POST /api/admin/sync/season` — sync one Sleeper season by `leagueId` (also pulls matchup history)
 - `POST /api/admin/sync/history` — discover and sync every Sleeper season for a league
 - `POST /api/admin/draft-rankings/import` — paste a rankings list (`{ year, csv, sourceLabel }`)
 - `POST /api/admin/draft-grades/recompute` — force-recompute a season's grades (`{ year }`)
+- `POST /api/admin/matchup-writeups/regenerate` — force-regenerate a week's recaps (`{ leagueId, year, week }`)
 
 ## A note on security
 

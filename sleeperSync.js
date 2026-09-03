@@ -144,15 +144,76 @@ async function syncSeason(leagueId) {
   return { year, seasonId, teams: rosters.length };
 }
 
+// Pull every week's matchup results for a season and store owner-vs-owner history.
+// Safe to call repeatedly — upserts, and weeks with no matchups yet are just skipped.
+async function syncMatchupHistory(seasonId, leagueId) {
+  const [rosters, users] = await Promise.all([
+    fetchJSON(`${API}/league/${leagueId}/rosters`),
+    fetchJSON(`${API}/league/${leagueId}/users`)
+  ]);
+  const userById = {};
+  users.forEach(u => { userById[u.user_id] = u; });
+  const ownerIdByRosterId = {}; // roster_id -> our DB owner id
+  for (const roster of rosters) {
+    const user = userById[roster.owner_id];
+    if (!user) continue;
+    const owner = await getOrCreateOwner(user.user_id, user.display_name);
+    ownerIdByRosterId[roster.roster_id] = owner.id;
+  }
+
+  let weeksSynced = 0;
+  for (let week = 1; week <= 18; week++) {
+    let matchups;
+    try { matchups = await fetchJSON(`${API}/league/${leagueId}/matchups/${week}`); } catch (e) { continue; }
+    if (!matchups || !matchups.length) continue;
+
+    const byMatchup = {};
+    matchups.forEach(m => {
+      if (m.matchup_id == null) return;
+      (byMatchup[m.matchup_id] = byMatchup[m.matchup_id] || []).push(m);
+    });
+
+    let sawScoredPair = false;
+    for (const pair of Object.values(byMatchup)) {
+      if (pair.length < 2) continue;
+      const [a, b] = pair;
+      const ownerA = ownerIdByRosterId[a.roster_id];
+      const ownerB = ownerIdByRosterId[b.roster_id];
+      if (!ownerA || !ownerB) continue;
+      const ptsA = a.points || 0, ptsB = b.points || 0;
+      if (ptsA === 0 && ptsB === 0) continue; // not played yet
+      sawScoredPair = true;
+      const resultA = ptsA > ptsB ? 'W' : ptsA < ptsB ? 'L' : 'T';
+      const resultB = resultA === 'W' ? 'L' : resultA === 'L' ? 'W' : 'T';
+      await upsertMatchupResult(seasonId, week, ownerA, ownerB, ptsA, ptsB, resultA);
+      await upsertMatchupResult(seasonId, week, ownerB, ownerA, ptsB, ptsA, resultB);
+    }
+    if (sawScoredPair) weeksSynced++;
+  }
+  return { weeksSynced };
+}
+
+async function upsertMatchupResult(seasonId, week, ownerId, opponentOwnerId, points, opponentPoints, result) {
+  await db.query(
+    `INSERT INTO matchup_results (season_id, week, owner_id, opponent_owner_id, points, opponent_points, result)
+     VALUES ($1,$2,$3,$4,$5,$6,$7)
+     ON CONFLICT (season_id, week, owner_id) DO UPDATE SET
+       opponent_owner_id = EXCLUDED.opponent_owner_id, points = EXCLUDED.points,
+       opponent_points = EXCLUDED.opponent_points, result = EXCLUDED.result`,
+    [seasonId, week, ownerId, opponentOwnerId, points, opponentPoints, result]
+  );
+}
+
 // Discover every Sleeper season in this league's history and sync all of them.
 async function syncAllSleeperHistory(startLeagueId) {
   const chain = await discoverSleeperChain(startLeagueId);
   const results = [];
   for (const league of chain) {
     const result = await syncSeason(league.league_id);
-    results.push(result);
+    const matchupResult = await syncMatchupHistory(result.seasonId, league.league_id);
+    results.push({ ...result, ...matchupResult });
   }
   return results;
 }
 
-module.exports = { syncSeason, syncAllSleeperHistory, discoverSleeperChain };
+module.exports = { syncSeason, syncAllSleeperHistory, syncMatchupHistory, discoverSleeperChain, getOrCreateOwner };

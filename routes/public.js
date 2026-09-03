@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
+const { generateMatchupWriteups } = require('../writeupGenerator');
 
 // All owners
 router.get('/owners', async (req, res) => {
@@ -92,6 +93,19 @@ router.get('/draft-grades/:year', async (req, res) => {
       ORDER BY dg.score DESC
     `, [year]);
     res.json({ ready: true, cached: false, results: fresh.rows });
+  } catch (e) {
+    res.status(500).json({ ready: false, reason: e.message });
+  }
+});
+
+// AI-written weekly matchup previews for a live Sleeper league + week.
+// Cached in the database — generates on first request, instant after that.
+router.get('/matchup-writeups', async (req, res) => {
+  const { leagueId, week } = req.query;
+  if (!leagueId || !week) return res.status(400).json({ error: 'leagueId and week query params are required' });
+  try {
+    const result = await generateMatchupWriteups(leagueId, parseInt(week, 10));
+    res.json(result);
   } catch (e) {
     res.status(500).json({ ready: false, reason: e.message });
   }

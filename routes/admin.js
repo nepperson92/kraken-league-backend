@@ -1,8 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
-const { syncSeason, syncAllSleeperHistory } = require('../sleeperSync');
+const { syncSeason, syncAllSleeperHistory, syncMatchupHistory } = require('../sleeperSync');
 const { parseRankingsCSV, importRankings, computeAndStore } = require('../draftGrading');
+const { clearWriteups, generateMatchupWriteups } = require('../writeupGenerator');
 
 function requireAdmin(req, res, next) {
   const provided = req.header('x-admin-password');
@@ -95,7 +96,8 @@ router.post('/sync/season', async (req, res) => {
   if (!leagueId) return res.status(400).json({ error: 'leagueId is required' });
   try {
     const result = await syncSeason(leagueId);
-    res.json({ ok: true, result });
+    const matchupResult = await syncMatchupHistory(result.seasonId, leagueId);
+    res.json({ ok: true, result: { ...result, ...matchupResult } });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -136,6 +138,19 @@ router.post('/draft-grades/recompute', async (req, res) => {
     await db.query(`DELETE FROM draft_grades WHERE season_id = (SELECT id FROM seasons WHERE year = $1)`, [year]);
     const graded = await computeAndStore(year);
     res.json(graded);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Force-regenerate this week's matchup writeups (e.g. lineups changed, or you just want a redo)
+router.post('/matchup-writeups/regenerate', async (req, res) => {
+  const { leagueId, week, year } = req.body;
+  if (!leagueId || !week || !year) return res.status(400).json({ error: 'leagueId, week, and year are required' });
+  try {
+    await clearWriteups(leagueId, year, week);
+    const result = await generateMatchupWriteups(leagueId, parseInt(week, 10));
+    res.json(result);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

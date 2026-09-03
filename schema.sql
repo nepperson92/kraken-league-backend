@@ -68,3 +68,32 @@ CREATE TABLE IF NOT EXISTS draft_grades (
   computed_at TIMESTAMPTZ DEFAULT now(),
   UNIQUE(season_id, owner_id)
 );
+
+-- One row per owner per week per season, with their opponent — the basis for head-to-head history
+CREATE TABLE IF NOT EXISTS matchup_results (
+  id SERIAL PRIMARY KEY,
+  season_id INT NOT NULL REFERENCES seasons(id) ON DELETE CASCADE,
+  week INT NOT NULL,
+  owner_id INT NOT NULL REFERENCES owners(id) ON DELETE CASCADE,
+  opponent_owner_id INT REFERENCES owners(id) ON DELETE SET NULL,
+  points NUMERIC,
+  opponent_points NUMERIC,
+  result TEXT CHECK (result IN ('W','L','T')),
+  UNIQUE(season_id, week, owner_id)
+);
+CREATE INDEX IF NOT EXISTS idx_matchup_results_owner ON matchup_results(owner_id);
+CREATE INDEX IF NOT EXISTS idx_matchup_results_opponent ON matchup_results(opponent_owner_id);
+
+-- Cached AI-generated weekly matchup writeups, one row per matchup per week
+CREATE TABLE IF NOT EXISTS matchup_writeups (
+  id SERIAL PRIMARY KEY,
+  sleeper_league_id TEXT NOT NULL,
+  year INT NOT NULL,
+  week INT NOT NULL,
+  owner_a_id INT NOT NULL REFERENCES owners(id) ON DELETE CASCADE,
+  owner_b_id INT NOT NULL REFERENCES owners(id) ON DELETE CASCADE,
+  content TEXT NOT NULL,
+  model TEXT,
+  generated_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(sleeper_league_id, year, week, owner_a_id, owner_b_id)
+);
