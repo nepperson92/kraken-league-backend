@@ -16,7 +16,7 @@ This backend handles anything that needs to be *remembered* — career totals an
   every past season your league has run on Sleeper automatically
 - `routes/public.js` — read-only endpoints your website calls
 - `routes/admin.js` — password-protected endpoints for entering data and running syncs
-- `public/admin.html` — a simple password-gated page for the commissioner to use
+- `public/index.html` — a simple password-gated page for the commissioner to use, served at `/admin`
 
 ## 1. Get a Postgres database
 
