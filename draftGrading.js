@@ -129,7 +129,8 @@ async function computeDraftGrades(year) {
     if (!pick.picked_by) return;
     const ownerUserId = pick.picked_by;
     const expectedRank = rankByPlayerId[pick.player_id];
-    const value = expectedRank != null ? expectedRank - pick.pick_no : 0;
+    // Positive = steal (picked later than their ADP), negative = reach (picked earlier than their ADP)
+    const value = expectedRank != null ? pick.pick_no - expectedRank : 0;
     (byOwner[ownerUserId] = byOwner[ownerUserId] || []).push({
       round: pick.round,
       pick_no: pick.pick_no,
