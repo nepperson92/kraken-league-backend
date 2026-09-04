@@ -103,7 +103,7 @@ router.get('/draft-grades/:year', async (req, res) => {
     `, [year]);
     res.json({ ready: true, cached: false, results: fresh.rows });
   } catch (e) {
-    res.status(500).json({ ready: false, reason: e.message });
+    res.json({ ready: false, reason: e.message });
   }
 });
 
@@ -116,7 +116,7 @@ router.get('/matchup-writeups', async (req, res) => {
     const result = await generateMatchupWriteups(leagueId, parseInt(week, 10));
     res.json(result);
   } catch (e) {
-    res.status(500).json({ ready: false, reason: e.message });
+    res.json({ ready: false, reason: e.message });
   }
 });
 
