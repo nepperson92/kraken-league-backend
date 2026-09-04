@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const { generateMatchupWriteups } = require('../writeupGenerator');
-const { getRankings } = require('../draftGrading');
+const { getRankings, computeAndStore } = require('../draftGrading');
 const { listKeepers } = require('../keepers');
 const { getSetting } = require('../settings');
 
