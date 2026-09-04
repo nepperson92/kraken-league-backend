@@ -3,6 +3,7 @@ const router = express.Router();
 const db = require('../db');
 const { generateMatchupWriteups } = require('../writeupGenerator');
 const { getRankings, computeAndStore } = require('../draftGrading');
+const { listDues } = require('../dues');
 const { listKeepers } = require('../keepers');
 const { getSetting } = require('../settings');
 
@@ -137,6 +138,13 @@ router.get('/config', async (req, res) => {
 router.get('/draft-rankings/:year', async (req, res) => {
   const year = parseInt(req.params.year, 10);
   const rows = await getRankings(year);
+  res.json(rows);
+});
+
+// Dues status for every owner for a season
+router.get('/dues/:year', async (req, res) => {
+  const year = parseInt(req.params.year, 10);
+  const rows = await listDues(year);
   res.json(rows);
 });
 

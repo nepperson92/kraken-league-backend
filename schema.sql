@@ -125,3 +125,13 @@ CREATE TABLE IF NOT EXISTS settings (
 
 -- Added after initial release: rankings need decimal precision (e.g. ADP 1.4), not whole numbers
 ALTER TABLE draft_rankings ALTER COLUMN overall_rank TYPE NUMERIC;
+
+-- League dues tracker, per owner per season
+CREATE TABLE IF NOT EXISTS dues (
+  id SERIAL PRIMARY KEY,
+  season_id INT NOT NULL REFERENCES seasons(id) ON DELETE CASCADE,
+  owner_id INT NOT NULL REFERENCES owners(id) ON DELETE CASCADE,
+  paid BOOLEAN NOT NULL DEFAULT FALSE,
+  paid_at TIMESTAMPTZ,
+  UNIQUE(season_id, owner_id)
+);

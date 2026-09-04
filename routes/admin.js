@@ -5,6 +5,7 @@ const { syncSeason, syncAllSleeperHistory, syncMatchupHistory } = require('../sl
 const { parseRankingsCSV, importRankings, computeAndStore, updateRankingById, deleteRankingById, deleteAllRankingsForYear } = require('../draftGrading');
 const { clearWriteups, generateMatchupWriteups } = require('../writeupGenerator');
 const { setSetting } = require('../settings');
+const { setPaid } = require('../dues');
 const { addOrUpdateKeeper, updateKeeperById } = require('../keepers');
 
 function requireAdmin(req, res, next) {
@@ -234,6 +235,20 @@ router.post('/config', async (req, res) => {
   }
   await setSetting('current_league_id', String(leagueId));
   res.json({ ok: true, leagueId: String(leagueId) });
+});
+
+// Mark an owner paid/unpaid for a season's dues
+router.post('/dues', async (req, res) => {
+  const { year, ownerId, paid } = req.body;
+  if (!year || !ownerId || typeof paid !== 'boolean') {
+    return res.status(400).json({ error: 'year, ownerId, and paid (boolean) are required' });
+  }
+  try {
+    const row = await setPaid(year, ownerId, paid);
+    res.json(row);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 module.exports = router;

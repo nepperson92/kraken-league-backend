@@ -39,6 +39,9 @@
   .owner-row:last-child{border-bottom:none;}
   .owner-row button{margin:0; padding:5px 12px; font-size:12px; background:transparent; border:1px solid var(--loss); color:var(--loss);}
   .owner-row button:hover{background:rgba(193,84,74,0.12);}
+  .dues-toggle{margin:0; padding:6px 14px; font-size:12px; border:1px solid var(--line);}
+  .dues-toggle.is-paid{background:var(--win); border-color:var(--win); color:var(--bg-void);}
+  .dues-toggle.is-unpaid{background:transparent; border-color:var(--loss); color:var(--loss);}
   .msg{font-size:13px; margin-top:12px; padding:10px 12px; display:none;}
   .msg.ok{display:block; background:rgba(95,167,119,0.12); color:var(--win); border:1px solid rgba(95,167,119,0.3);}
   .msg.err{display:block; background:rgba(193,84,74,0.12); color:var(--loss); border:1px solid rgba(193,84,74,0.3);}
@@ -130,6 +133,15 @@
   </section>
 
   <section>
+    <h2>Dues tracker</h2>
+    <p class="sub" style="margin-bottom:0;">Mark who's paid their dues for a season. Click a team's status to flip it.</p>
+    <label>Year</label>
+    <input id="dues-year" type="number" placeholder="2026">
+    <button id="dues-load-btn">Load teams</button>
+    <div id="dues-list" style="margin-top:14px;"></div>
+  </section>
+
+  <section>
     <h2>Owners</h2>
     <div id="owners-list" style="margin-bottom:16px;"></div>
     <label>Name</label>
@@ -211,6 +223,7 @@
     loadKeepersList();
     loadSiteLeagueId();
     loadResultsList();
+    loadDuesList();
   });
 
   function headers(){
@@ -459,6 +472,51 @@
       loadKeepersList();
     }catch(e){ showMsg(msg, false, e.message); }
   });
+
+  // ---- Dues tracker ----
+  async function loadDuesList(){
+    const year = parseInt($('#dues-year').value, 10) || new Date().getFullYear();
+    if(!$('#dues-year').value) $('#dues-year').value = year;
+    const list = $('#dues-list');
+    list.innerHTML = 'Loading…';
+    try{
+      const rows = await (await fetch(`/api/dues/${year}`)).json();
+      if(!rows.length){ list.innerHTML = '<div class="sub">No owners yet — add some above.</div>'; return; }
+      list.innerHTML = rows.map(r => `<div class="owner-row" data-owner-id="${r.owner_id}">
+        <span>${r.name}</span>
+        <button class="dues-toggle ${r.paid ? 'is-paid' : 'is-unpaid'}" data-owner-id="${r.owner_id}" data-paid="${r.paid}">
+          ${r.paid ? 'PAID ✓' : 'UNPAID'}
+        </button>
+      </div>`).join('');
+      list.querySelectorAll('.dues-toggle').forEach(btn => {
+        btn.addEventListener('click', () => toggleDues(btn, year));
+      });
+    }catch(e){
+      list.innerHTML = '<div class="sub">Could not load dues.</div>';
+    }
+  }
+  $('#dues-load-btn').addEventListener('click', loadDuesList);
+
+  async function toggleDues(btn, year){
+    const ownerId = btn.dataset.ownerId;
+    const newPaid = btn.dataset.paid !== 'true';
+    btn.disabled = true;
+    try{
+      const res = await fetch('/api/admin/dues', {
+        method:'POST', headers: headers(),
+        body: JSON.stringify({ year, ownerId: parseInt(ownerId,10), paid: newPaid })
+      });
+      if(!res.ok) throw new Error('Could not update');
+      btn.dataset.paid = String(newPaid);
+      btn.textContent = newPaid ? 'PAID ✓' : 'UNPAID';
+      btn.classList.toggle('is-paid', newPaid);
+      btn.classList.toggle('is-unpaid', !newPaid);
+    }catch(e){
+      alert('Could not update dues status.');
+    }finally{
+      btn.disabled = false;
+    }
+  }
 
   // ---- Owners ----
   async function loadOwnersList(){
