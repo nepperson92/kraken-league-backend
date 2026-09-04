@@ -162,6 +162,7 @@
   <section>
     <h2>Add a team's result for a season</h2>
     <p class="sub" style="margin-bottom:0;">Use this to fill in each owner's record for a pre-Sleeper season.</p>
+    <div id="results-list" style="margin:14px 0;"></div>
     <div class="row">
       <div><label>Year</label><input id="result-year" type="number" placeholder="2018"></div>
       <div><label>Owner name (must match an owner above)</label><input id="result-owner" placeholder="Owner's name"></div>
@@ -185,6 +186,7 @@
       <label><input type="checkbox" id="result-last"> Finished last</label>
     </div>
     <button id="result-submit">Save result</button>
+    <button class="secondary hidden" id="result-cancel-edit">Cancel edit</button>
     <div id="result-msg" class="msg"></div>
   </section>
 </div>
@@ -208,6 +210,7 @@
     loadOwnersList();
     loadKeepersList();
     loadSiteLeagueId();
+    loadResultsList();
   });
 
   function headers(){
@@ -528,6 +531,82 @@
   });
 
   // ---- Season result ----
+  let editingResultId = null;
+
+  async function loadResultsList(){
+    const year = parseInt($('#result-year').value, 10) || new Date().getFullYear();
+    if(!$('#result-year').value) $('#result-year').value = year;
+    const list = $('#results-list');
+    list.innerHTML = 'Loading…';
+    try{
+      const seasons = await (await fetch('/api/seasons')).json();
+      const season = seasons.find(s => s.year === year);
+      if(!season || !season.teams || !season.teams.length){
+        list.innerHTML = `<div class="sub">No results on file for ${year} yet.</div>`;
+        return;
+      }
+      list.innerHTML = season.teams.map(t => `<div class="owner-row" data-id="${t.id}">
+        <span>${t.owner_name} — ${t.wins}-${t.losses}${t.ties ? '-'+t.ties : ''}${t.won_championship ? ' 🏆' : ''}${t.last_place ? ' 💩' : ''}</span>
+        <span>
+          <button class="secondary" data-edit-result-id="${t.id}">Edit</button>
+          <button data-delete-result-id="${t.id}">Delete</button>
+        </span>
+      </div>`).join('');
+      list.querySelectorAll('button[data-edit-result-id]').forEach(btn => {
+        const row = season.teams.find(t => String(t.id) === btn.dataset.editResultId);
+        btn.addEventListener('click', () => startEditResult(row, year));
+      });
+      list.querySelectorAll('button[data-delete-result-id]').forEach(btn => {
+        btn.addEventListener('click', () => deleteResult(btn.dataset.deleteResultId, year));
+      });
+    }catch(e){
+      list.innerHTML = '<div class="sub">Could not load results.</div>';
+    }
+  }
+  $('#result-year').addEventListener('change', loadResultsList);
+
+  function startEditResult(row, year){
+    editingResultId = row.id;
+    $('#result-year').value = year;
+    $('#result-owner').value = row.owner_name;
+    $('#result-wins').value = row.wins || 0;
+    $('#result-losses').value = row.losses || 0;
+    $('#result-ties').value = row.ties || 0;
+    $('#result-rank').value = row.regular_season_rank || '';
+    $('#result-po-wins').value = row.playoff_wins || 0;
+    $('#result-po-losses').value = row.playoff_losses || 0;
+    $('#result-made-playoffs').checked = !!row.made_playoffs;
+    $('#result-made-champ').checked = !!row.made_championship;
+    $('#result-won-champ').checked = !!row.won_championship;
+    $('#result-last').checked = !!row.last_place;
+    $('#result-submit').textContent = 'Update result';
+    $('#result-cancel-edit').classList.remove('hidden');
+    $('#result-owner').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  function resetResultForm(){
+    editingResultId = null;
+    $('#result-owner').value = '';
+    $('#result-wins').value = 0; $('#result-losses').value = 0; $('#result-ties').value = 0;
+    $('#result-rank').value = ''; $('#result-po-wins').value = 0; $('#result-po-losses').value = 0;
+    $('#result-made-playoffs').checked = false; $('#result-made-champ').checked = false;
+    $('#result-won-champ').checked = false; $('#result-last').checked = false;
+    $('#result-submit').textContent = 'Save result';
+    $('#result-cancel-edit').classList.add('hidden');
+  }
+  $('#result-cancel-edit').addEventListener('click', resetResultForm);
+
+  async function deleteResult(id, year){
+    if(!confirm('Delete this season result?')) return;
+    const msg = $('#result-msg');
+    try{
+      const res = await fetch(`/api/admin/season-results/${id}`, { method:'DELETE', headers: headers() });
+      if(!res.ok) throw new Error('Could not delete');
+      showMsg(msg, true, 'Deleted.');
+      loadResultsList();
+    }catch(e){ showMsg(msg, false, e.message); }
+  }
+
   $('#result-submit').addEventListener('click', async () => {
     const msg = $('#result-msg');
     const year = parseInt($('#result-year').value, 10);
@@ -559,6 +638,8 @@
       const data = await res.json();
       if(!res.ok) throw new Error(data.error || 'Could not save result');
       showMsg(msg, true, `Saved ${ownerName}'s ${year} result.`);
+      resetResultForm();
+      loadResultsList();
     }catch(e){ showMsg(msg, false, e.message); }
   });
 })();
