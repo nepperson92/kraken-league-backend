@@ -1,7 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
-const { generateMatchupWriteups } = require('../writeupGenerator');
+const { generateMatchupWriteups, getHeadToHead } = require('../writeupGenerator');
+const { computeRecordBook } = require('../recordBook');
 const { getRankings, computeAndStore } = require('../draftGrading');
 const { listDues } = require('../dues');
 const { listKeepers } = require('../keepers');
@@ -146,6 +147,33 @@ router.get('/dues/:year', async (req, res) => {
   const year = parseInt(req.params.year, 10);
   const rows = await listDues(year);
   res.json(rows);
+});
+
+// League-wide record book — highest/lowest scores, streaks, closest/biggest margins
+router.get('/record-book', async (req, res) => {
+  try {
+    const result = await computeRecordBook();
+    res.json(result);
+  } catch (e) {
+    res.json({ ready: false, reason: e.message });
+  }
+});
+
+// Head-to-head record between two current league members, looked up by their Sleeper user IDs
+router.get('/head-to-head', async (req, res) => {
+  const { userA, userB } = req.query;
+  if (!userA || !userB) return res.status(400).json({ error: 'userA and userB query params are required' });
+  try {
+    const ownerA = await db.query('SELECT id, name FROM owners WHERE sleeper_user_id = $1', [userA]);
+    const ownerB = await db.query('SELECT id, name FROM owners WHERE sleeper_user_id = $1', [userB]);
+    if (!ownerA.rows.length || !ownerB.rows.length) {
+      return res.json({ ready: false, reason: 'No history on file for one or both of these teams yet.' });
+    }
+    const h2h = await getHeadToHead(ownerA.rows[0].id, ownerB.rows[0].id);
+    res.json({ ready: true, ownerAName: ownerA.rows[0].name, ownerBName: ownerB.rows[0].name, ...h2h });
+  } catch (e) {
+    res.json({ ready: false, reason: e.message });
+  }
 });
 
 module.exports = router;

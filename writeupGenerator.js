@@ -239,4 +239,4 @@ async function clearWriteups(leagueId, year, week) {
   await db.query('DELETE FROM matchup_writeups WHERE sleeper_league_id=$1 AND year=$2 AND week=$3', [leagueId, year, week]);
 }
 
-module.exports = { generateMatchupWriteups, clearWriteups };
+module.exports = { generateMatchupWriteups, clearWriteups, getHeadToHead };
