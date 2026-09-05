@@ -98,6 +98,26 @@ Include every team exactly once, ranked 1 through N, most dominant first.`;
   return { ready: true, year, week, rankings, cached: false };
 }
 
+async function getPreviousWeekRankByTeam(leagueId, year, week) {
+  if (week <= 1) return {};
+  const prev = await db.query(
+    'SELECT rankings FROM power_rankings WHERE sleeper_league_id=$1 AND year=$2 AND week=$3',
+    [leagueId, year, week - 1]
+  );
+  if (!prev.rows.length) return {};
+  const byTeam = {};
+  prev.rows[0].rankings.forEach(r => { byTeam[r.teamName] = r.rank; });
+  return byTeam;
+}
+
+function attachChange(rankings, previousRankByTeam) {
+  return rankings.map(r => {
+    const prevRank = previousRankByTeam[r.teamName];
+    const change = prevRank != null ? prevRank - r.rank : null; // positive = moved up
+    return { ...r, change };
+  });
+}
+
 async function getPowerRankings(leagueId, week) {
   const league = await fetchJSON(`${API}/league/${leagueId}`);
   const year = parseInt(league.season, 10);
@@ -106,10 +126,14 @@ async function getPowerRankings(leagueId, week) {
     'SELECT * FROM power_rankings WHERE sleeper_league_id=$1 AND year=$2 AND week=$3',
     [leagueId, year, week]
   );
+  const previousRankByTeam = await getPreviousWeekRankByTeam(leagueId, year, week);
+
   if (cached.rows.length) {
-    return { ready: true, year, week, rankings: cached.rows[0].rankings, cached: true };
+    return { ready: true, year, week, rankings: attachChange(cached.rows[0].rankings, previousRankByTeam), cached: true };
   }
-  return generatePowerRankings(league, leagueId, week, year);
+  const result = await generatePowerRankings(league, leagueId, week, year);
+  if (!result.ready) return result;
+  return { ...result, rankings: attachChange(result.rankings, previousRankByTeam) };
 }
 
 async function clearPowerRankings(leagueId, year, week) {
