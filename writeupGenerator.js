@@ -32,6 +32,8 @@ async function getCareerProfile(ownerId) {
       COUNT(sr.id) AS seasons_played,
       COALESCE(SUM(sr.wins),0) AS total_wins,
       COALESCE(SUM(sr.losses),0) AS total_losses,
+      COALESCE(SUM(sr.points_for),0) AS total_points_for,
+      COALESCE(SUM(sr.points_against),0) AS total_points_against,
       COUNT(*) FILTER (WHERE sr.made_playoffs) AS playoff_appearances,
       COUNT(*) FILTER (WHERE sr.won_championship) AS championships,
       COUNT(*) FILTER (WHERE sr.last_place) AS times_last_place
@@ -239,4 +241,4 @@ async function clearWriteups(leagueId, year, week) {
   await db.query('DELETE FROM matchup_writeups WHERE sleeper_league_id=$1 AND year=$2 AND week=$3', [leagueId, year, week]);
 }
 
-module.exports = { generateMatchupWriteups, clearWriteups, getHeadToHead };
+module.exports = { generateMatchupWriteups, clearWriteups, getHeadToHead, getCareerProfile };

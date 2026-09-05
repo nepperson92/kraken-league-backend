@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
-const { generateMatchupWriteups, getHeadToHead } = require('../writeupGenerator');
+const { generateMatchupWriteups, getHeadToHead, getCareerProfile } = require('../writeupGenerator');
 const { computeRecordBook } = require('../recordBook');
 const { getRankings, computeAndStore } = require('../draftGrading');
 const { listDues } = require('../dues');
@@ -171,6 +171,36 @@ router.get('/head-to-head', async (req, res) => {
     }
     const h2h = await getHeadToHead(ownerA.rows[0].id, ownerB.rows[0].id);
     res.json({ ready: true, ownerAName: ownerA.rows[0].name, ownerBName: ownerB.rows[0].name, ...h2h });
+  } catch (e) {
+    res.json({ ready: false, reason: e.message });
+  }
+});
+
+// Full comparison report between any two managers on file (by internal owner id —
+// works for past/departed managers too, not just current Sleeper league members)
+router.get('/manager-comparison', async (req, res) => {
+  const ownerAId = parseInt(req.query.ownerA, 10);
+  const ownerBId = parseInt(req.query.ownerB, 10);
+  if (!ownerAId || !ownerBId) return res.status(400).json({ error: 'ownerA and ownerB query params are required' });
+  try {
+    const [ownerA, ownerB] = await Promise.all([
+      db.query('SELECT * FROM owners WHERE id = $1', [ownerAId]),
+      db.query('SELECT * FROM owners WHERE id = $1', [ownerBId])
+    ]);
+    if (!ownerA.rows.length || !ownerB.rows.length) {
+      return res.json({ ready: false, reason: 'One or both managers could not be found.' });
+    }
+    const [h2h, careerA, careerB] = await Promise.all([
+      getHeadToHead(ownerAId, ownerBId),
+      getCareerProfile(ownerAId),
+      getCareerProfile(ownerBId)
+    ]);
+    res.json({
+      ready: true,
+      ownerA: { id: ownerAId, name: ownerA.rows[0].name, sleeper_user_id: ownerA.rows[0].sleeper_user_id, career: careerA },
+      ownerB: { id: ownerBId, name: ownerB.rows[0].name, sleeper_user_id: ownerB.rows[0].sleeper_user_id, career: careerB },
+      h2h
+    });
   } catch (e) {
     res.json({ ready: false, reason: e.message });
   }
