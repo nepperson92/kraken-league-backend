@@ -155,10 +155,38 @@ function eligibleForSlot(slot, pos) {
   return pos === slot;
 }
 
-async function detectAndStoreLineupMistakes(seasonId, week, ownerId, entry, slots) {
+function computeCustomPoints(stats, scoringSettings) {
+  let total = 0;
+  for (const statKey in scoringSettings) {
+    const statVal = stats[statKey];
+    const weight = scoringSettings[statKey];
+    if (typeof statVal === 'number' && typeof weight === 'number') total += statVal * weight;
+  }
+  return total;
+}
+
+// Fetches every player's ACTUAL raw stat line for a week and runs it through this league's
+// real scoring settings — Sleeper's own pts_ppr/pts_std presets don't reflect custom scoring,
+// and the matchups endpoint itself has no per-player point breakdown at all.
+async function getWeekPointsMap(year, week, scoringSettings) {
+  const map = {};
+  try {
+    const url = `https://api.sleeper.app/stats/nfl/${year}/${week}?season_type=regular&position[]=QB&position[]=RB&position[]=WR&position[]=TE&position[]=K&position[]=DEF&position[]=FLEX`;
+    const data = await fetchJSON(url);
+    const entries = Array.isArray(data) ? data : Object.values(data || {});
+    entries.forEach(item => {
+      const pid = item.player_id || item.playerId;
+      if (!pid) return;
+      const stats = item.stats || {};
+      map[pid] = computeCustomPoints(stats, scoringSettings);
+    });
+  } catch (e) { /* leave map empty — mistakes just won't be detected for this week */ }
+  return map;
+}
+
+async function detectAndStoreLineupMistakes(seasonId, week, ownerId, entry, slots, pointsMap) {
   const starters = entry.starters || [];
-  const pts = entry.players_points || {};
-  if (!starters.length || !Object.keys(pts).length) return;
+  if (!starters.length || !Object.keys(pointsMap).length) return;
   const bench = (entry.players || []).filter(pid => !starters.includes(pid));
 
   // Clear any previous computation for this owner/week so re-syncs stay accurate, not additive
@@ -168,12 +196,12 @@ async function detectAndStoreLineupMistakes(seasonId, week, ownerId, entry, slot
     const pid = starters[i];
     const slot = slots[i];
     if (!slot) continue;
-    const startedPts = pts[pid];
+    const startedPts = pointsMap[pid];
     if (startedPts == null) continue;
     const startedPlayer = await players.getPlayer(pid);
     let best = null, bestPid = null, bestPts = -Infinity;
     for (const bpid of bench) {
-      const bpts = pts[bpid];
+      const bpts = pointsMap[bpid];
       if (bpts == null) continue;
       const bp = await players.getPlayer(bpid);
       if (!bp || !eligibleForSlot(slot, bp.position)) continue;
@@ -204,6 +232,8 @@ async function syncMatchupHistory(seasonId, leagueId) {
     fetchJSON(`${API}/league/${leagueId}/users`)
   ]);
   const slots = (league.roster_positions || []).filter(s => s !== 'BN' && s !== 'IR' && s !== 'TAXI');
+  const scoringSettings = league.scoring_settings || {};
+  const year = league.season;
   const userById = {};
   users.forEach(u => { userById[u.user_id] = u; });
   const ownerIdByRosterId = {}; // roster_id -> our DB owner id
@@ -227,6 +257,7 @@ async function syncMatchupHistory(seasonId, leagueId) {
     });
 
     let sawScoredPair = false;
+    let pointsMap = null; // fetched lazily, once per week, only if this week actually has scored games
     for (const pair of Object.values(byMatchup)) {
       if (pair.length < 2) continue;
       const [a, b] = pair;
@@ -240,8 +271,9 @@ async function syncMatchupHistory(seasonId, leagueId) {
       const resultB = resultA === 'W' ? 'L' : resultA === 'L' ? 'W' : 'T';
       await upsertMatchupResult(seasonId, week, ownerA, ownerB, ptsA, ptsB, resultA);
       await upsertMatchupResult(seasonId, week, ownerB, ownerA, ptsB, ptsA, resultB);
-      await detectAndStoreLineupMistakes(seasonId, week, ownerA, a, slots);
-      await detectAndStoreLineupMistakes(seasonId, week, ownerB, b, slots);
+      if (!pointsMap) pointsMap = await getWeekPointsMap(year, week, scoringSettings);
+      await detectAndStoreLineupMistakes(seasonId, week, ownerA, a, slots, pointsMap);
+      await detectAndStoreLineupMistakes(seasonId, week, ownerB, b, slots, pointsMap);
     }
     if (sawScoredPair) weeksSynced++;
   }
