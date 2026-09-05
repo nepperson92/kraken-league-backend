@@ -135,3 +135,22 @@ CREATE TABLE IF NOT EXISTS dues (
   paid_at TIMESTAMPTZ,
   UNIQUE(season_id, owner_id)
 );
+
+-- Every detected "started a worse player than what was on the bench" mistake, computed at
+-- sync time so all-time lineup-mistake stats don't require re-fetching every past week live.
+CREATE TABLE IF NOT EXISTS lineup_mistakes (
+  id SERIAL PRIMARY KEY,
+  season_id INT NOT NULL REFERENCES seasons(id) ON DELETE CASCADE,
+  week INT NOT NULL,
+  owner_id INT NOT NULL REFERENCES owners(id) ON DELETE CASCADE,
+  slot TEXT,
+  started_player_id TEXT,
+  started_name TEXT,
+  started_pts NUMERIC,
+  bench_player_id TEXT,
+  bench_name TEXT,
+  bench_pts NUMERIC,
+  diff NUMERIC,
+  UNIQUE(season_id, week, owner_id, started_player_id)
+);
+CREATE INDEX IF NOT EXISTS idx_lineup_mistakes_owner ON lineup_mistakes(owner_id);

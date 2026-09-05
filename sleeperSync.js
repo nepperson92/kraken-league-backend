@@ -1,4 +1,5 @@
 const db = require('./db');
+const players = require('./playersCache');
 
 const API = 'https://api.sleeper.app/v1';
 
@@ -146,11 +147,63 @@ async function syncSeason(leagueId) {
 
 // Pull every week's matchup results for a season and store owner-vs-owner history.
 // Safe to call repeatedly — upserts, and weeks with no matchups yet are just skipped.
+function eligibleForSlot(slot, pos) {
+  if (slot === 'FLEX') return ['RB', 'WR', 'TE'].includes(pos);
+  if (slot === 'SUPER_FLEX') return ['QB', 'RB', 'WR', 'TE'].includes(pos);
+  if (slot === 'WRRB_FLEX') return ['RB', 'WR'].includes(pos);
+  if (slot === 'REC_FLEX') return ['WR', 'TE'].includes(pos);
+  return pos === slot;
+}
+
+async function detectAndStoreLineupMistakes(seasonId, week, ownerId, entry, slots) {
+  const starters = entry.starters || [];
+  const pts = entry.players_points || {};
+  if (!starters.length || !Object.keys(pts).length) return;
+  const bench = (entry.players || []).filter(pid => !starters.includes(pid));
+
+  // Clear any previous computation for this owner/week so re-syncs stay accurate, not additive
+  await db.query('DELETE FROM lineup_mistakes WHERE season_id=$1 AND week=$2 AND owner_id=$3', [seasonId, week, ownerId]);
+
+  for (let i = 0; i < starters.length; i++) {
+    const pid = starters[i];
+    const slot = slots[i];
+    if (!slot) continue;
+    const startedPts = pts[pid];
+    if (startedPts == null) continue;
+    const startedPlayer = await players.getPlayer(pid);
+    let best = null, bestPid = null, bestPts = -Infinity;
+    for (const bpid of bench) {
+      const bpts = pts[bpid];
+      if (bpts == null) continue;
+      const bp = await players.getPlayer(bpid);
+      if (!bp || !eligibleForSlot(slot, bp.position)) continue;
+      if (bpts > bestPts) { bestPts = bpts; best = bp; bestPid = bpid; }
+    }
+    if (best && bestPts > startedPts + 0.01) {
+      await db.query(
+        `INSERT INTO lineup_mistakes (season_id, week, owner_id, slot, started_player_id, started_name, started_pts, bench_player_id, bench_name, bench_pts, diff)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+         ON CONFLICT (season_id, week, owner_id, started_player_id) DO UPDATE SET
+           bench_player_id=EXCLUDED.bench_player_id, bench_name=EXCLUDED.bench_name,
+           bench_pts=EXCLUDED.bench_pts, diff=EXCLUDED.diff`,
+        [
+          seasonId, week, ownerId, slot, pid,
+          startedPlayer ? `${startedPlayer.first_name || ''} ${startedPlayer.last_name || ''}`.trim() : pid,
+          startedPts, bestPid, `${best.first_name || ''} ${best.last_name || ''}`.trim(),
+          bestPts, bestPts - startedPts
+        ]
+      );
+    }
+  }
+}
+
 async function syncMatchupHistory(seasonId, leagueId) {
-  const [rosters, users] = await Promise.all([
+  const [league, rosters, users] = await Promise.all([
+    fetchJSON(`${API}/league/${leagueId}`),
     fetchJSON(`${API}/league/${leagueId}/rosters`),
     fetchJSON(`${API}/league/${leagueId}/users`)
   ]);
+  const slots = (league.roster_positions || []).filter(s => s !== 'BN' && s !== 'IR' && s !== 'TAXI');
   const userById = {};
   users.forEach(u => { userById[u.user_id] = u; });
   const ownerIdByRosterId = {}; // roster_id -> our DB owner id
@@ -187,6 +240,8 @@ async function syncMatchupHistory(seasonId, leagueId) {
       const resultB = resultA === 'W' ? 'L' : resultA === 'L' ? 'W' : 'T';
       await upsertMatchupResult(seasonId, week, ownerA, ownerB, ptsA, ptsB, resultA);
       await upsertMatchupResult(seasonId, week, ownerB, ownerA, ptsB, ptsA, resultB);
+      await detectAndStoreLineupMistakes(seasonId, week, ownerA, a, slots);
+      await detectAndStoreLineupMistakes(seasonId, week, ownerB, b, slots);
     }
     if (sawScoredPair) weeksSynced++;
   }

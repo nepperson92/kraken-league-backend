@@ -206,4 +206,17 @@ router.get('/manager-comparison', async (req, res) => {
   }
 });
 
+// All-time lineup mistakes for an owner, computed at sync time (not live)
+router.get('/lineup-mistakes', async (req, res) => {
+  const ownerId = parseInt(req.query.ownerId, 10);
+  if (!ownerId) return res.status(400).json({ error: 'ownerId query param is required' });
+  const result = await db.query(`
+    SELECT lm.*, s.year FROM lineup_mistakes lm
+    JOIN seasons s ON s.id = lm.season_id
+    WHERE lm.owner_id = $1
+    ORDER BY s.year DESC, lm.week DESC
+  `, [ownerId]);
+  res.json({ count: result.rows.length, mistakes: result.rows });
+});
+
 module.exports = router;
