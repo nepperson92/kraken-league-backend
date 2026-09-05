@@ -251,4 +251,10 @@ router.post('/dues', async (req, res) => {
   }
 });
 
+// Remove an inappropriate hub chat message
+router.delete('/hub-messages/:id', async (req, res) => {
+  await db.query('DELETE FROM hub_messages WHERE id = $1', [req.params.id]);
+  res.json({ ok: true });
+});
+
 module.exports = router;

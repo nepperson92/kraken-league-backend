@@ -223,4 +223,22 @@ router.get('/lineup-mistakes', async (req, res) => {
   res.json({ count: result.rows.length, mistakes: result.rows });
 });
 
+// Shared league hub chat — visible to every visitor, not just the poster's own browser
+router.get('/hub-messages', async (req, res) => {
+  const result = await db.query('SELECT * FROM hub_messages ORDER BY created_at DESC LIMIT 300');
+  res.json(result.rows);
+});
+
+router.post('/hub-messages', async (req, res) => {
+  let { name, body } = req.body;
+  name = (name || '').trim().slice(0, 60) || 'Anonymous';
+  body = (body || '').trim().slice(0, 2000);
+  if (!body) return res.status(400).json({ error: 'A message body is required.' });
+  const result = await db.query(
+    'INSERT INTO hub_messages (name, body) VALUES ($1,$2) RETURNING *',
+    [name, body]
+  );
+  res.json(result.rows[0]);
+});
+
 module.exports = router;
