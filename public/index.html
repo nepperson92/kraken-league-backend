@@ -609,7 +609,7 @@
         return;
       }
       list.innerHTML = season.teams.map(t => `<div class="owner-row" data-id="${t.id}">
-        <span>${t.owner_name} — ${t.wins}-${t.losses}${t.ties ? '-'+t.ties : ''}${t.points_for ? ` · ${Number(t.points_for).toFixed(1)} PF` : ''}${t.points_against ? ` / ${Number(t.points_against).toFixed(1)} PA` : ''}${t.won_championship ? ' 🏆' : ''}${t.third_place ? ' 🥉' : ''}${t.last_place ? ' 💩' : ''}</span>
+        <span>${t.owner_name} — ${t.wins}-${t.losses}${t.ties ? '-'+t.ties : ''}${t.regular_season_rank ? ` · Rank ${t.regular_season_rank}` : ' · <span style="color:var(--loss);">no rank set</span>'}${t.points_for ? ` · ${Number(t.points_for).toFixed(1)} PF` : ''}${t.points_against ? ` / ${Number(t.points_against).toFixed(1)} PA` : ''}${t.won_championship ? ' 🏆' : ''}${t.third_place ? ' 🥉' : ''}${t.last_place ? ' 💩' : ''}</span>
         <span>
           <button class="secondary" data-edit-result-id="${t.id}">Edit</button>
           <button data-delete-result-id="${t.id}">Delete</button>
