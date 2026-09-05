@@ -199,6 +199,7 @@
       <label><input type="checkbox" id="result-made-playoffs"> Made playoffs</label>
       <label><input type="checkbox" id="result-made-champ"> Made championship</label>
       <label><input type="checkbox" id="result-won-champ"> Won championship</label>
+      <label><input type="checkbox" id="result-third"> 3rd place</label>
       <label><input type="checkbox" id="result-last"> Finished last</label>
     </div>
     <button id="result-submit">Save result</button>
@@ -608,7 +609,7 @@
         return;
       }
       list.innerHTML = season.teams.map(t => `<div class="owner-row" data-id="${t.id}">
-        <span>${t.owner_name} — ${t.wins}-${t.losses}${t.ties ? '-'+t.ties : ''}${t.points_for ? ` · ${Number(t.points_for).toFixed(1)} PF` : ''}${t.points_against ? ` / ${Number(t.points_against).toFixed(1)} PA` : ''}${t.won_championship ? ' 🏆' : ''}${t.last_place ? ' 💩' : ''}</span>
+        <span>${t.owner_name} — ${t.wins}-${t.losses}${t.ties ? '-'+t.ties : ''}${t.points_for ? ` · ${Number(t.points_for).toFixed(1)} PF` : ''}${t.points_against ? ` / ${Number(t.points_against).toFixed(1)} PA` : ''}${t.won_championship ? ' 🏆' : ''}${t.third_place ? ' 🥉' : ''}${t.last_place ? ' 💩' : ''}</span>
         <span>
           <button class="secondary" data-edit-result-id="${t.id}">Edit</button>
           <button data-delete-result-id="${t.id}">Delete</button>
@@ -642,6 +643,7 @@
     $('#result-made-playoffs').checked = !!row.made_playoffs;
     $('#result-made-champ').checked = !!row.made_championship;
     $('#result-won-champ').checked = !!row.won_championship;
+    $('#result-third').checked = !!row.third_place;
     $('#result-last').checked = !!row.last_place;
     $('#result-submit').textContent = 'Update result';
     $('#result-cancel-edit').classList.remove('hidden');
@@ -655,7 +657,7 @@
     $('#result-rank').value = ''; $('#result-pf').value = ''; $('#result-pa').value = '';
     $('#result-po-wins').value = 0; $('#result-po-losses').value = 0;
     $('#result-made-playoffs').checked = false; $('#result-made-champ').checked = false;
-    $('#result-won-champ').checked = false; $('#result-last').checked = false;
+    $('#result-won-champ').checked = false; $('#result-third').checked = false; $('#result-last').checked = false;
     $('#result-submit').textContent = 'Save result';
     $('#result-cancel-edit').classList.add('hidden');
   }
@@ -699,6 +701,7 @@
         made_playoffs: $('#result-made-playoffs').checked,
         made_championship: $('#result-made-champ').checked,
         won_championship: $('#result-won-champ').checked,
+        third_place: $('#result-third').checked,
         last_place: $('#result-last').checked
       };
       const res = await fetch('/api/admin/season-results', { method:'POST', headers: headers(), body: JSON.stringify(payload) });

@@ -41,6 +41,9 @@ CREATE TABLE IF NOT EXISTS season_results (
 CREATE INDEX IF NOT EXISTS idx_season_results_owner ON season_results(owner_id);
 CREATE INDEX IF NOT EXISTS idx_season_results_season ON season_results(season_id);
 
+-- Added after initial release: 3rd-place finishes, for the bronze trophy on the History page
+ALTER TABLE season_results ADD COLUMN IF NOT EXISTS third_place BOOLEAN DEFAULT FALSE;
+
 -- Pasted-in pre-draft rankings, used as the "expected value" reference for grading
 CREATE TABLE IF NOT EXISTS draft_rankings (
   id SERIAL PRIMARY KEY,

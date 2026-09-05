@@ -85,7 +85,7 @@ async function syncSeason(leagueId) {
   try { losersBracket = await fetchJSON(`${API}/league/${leagueId}/losers_bracket`); } catch (e) { /* not available */ }
 
   const playoffWins = {}, playoffLosses = {};
-  let championRosterId = null, runnerUpRosterId = null, lastPlaceRosterId = null;
+  let championRosterId = null, runnerUpRosterId = null, thirdPlaceRosterId = null, lastPlaceRosterId = null;
 
   (winnersBracket || []).forEach(m => {
     if (m.w) playoffWins[m.w] = (playoffWins[m.w] || 0) + 1;
@@ -93,6 +93,9 @@ async function syncSeason(leagueId) {
     if (m.p === 1) { // championship game
       championRosterId = m.w;
       runnerUpRosterId = m.l;
+    }
+    if (m.p === 3) { // 3rd-place game, only present in leagues that play one
+      thirdPlaceRosterId = m.w;
     }
   });
   (losersBracket || []).forEach(m => {
@@ -117,15 +120,15 @@ async function syncSeason(leagueId) {
       `INSERT INTO season_results
         (season_id, owner_id, team_name, wins, losses, ties, points_for, points_against,
          regular_season_rank, made_playoffs, playoff_wins, playoff_losses,
-         made_championship, won_championship, last_place)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+         made_championship, won_championship, third_place, last_place)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
        ON CONFLICT (season_id, owner_id) DO UPDATE SET
          team_name = EXCLUDED.team_name, wins = EXCLUDED.wins, losses = EXCLUDED.losses,
          ties = EXCLUDED.ties, points_for = EXCLUDED.points_for, points_against = EXCLUDED.points_against,
          regular_season_rank = EXCLUDED.regular_season_rank, made_playoffs = EXCLUDED.made_playoffs,
          playoff_wins = EXCLUDED.playoff_wins, playoff_losses = EXCLUDED.playoff_losses,
          made_championship = EXCLUDED.made_championship, won_championship = EXCLUDED.won_championship,
-         last_place = EXCLUDED.last_place`,
+         third_place = EXCLUDED.third_place, last_place = EXCLUDED.last_place`,
       [
         seasonId, owner.id, teamName,
         s.wins || 0, s.losses || 0, s.ties || 0,
@@ -137,6 +140,7 @@ async function syncSeason(leagueId) {
         playoffLosses[roster.roster_id] || 0,
         roster.roster_id === championRosterId || roster.roster_id === runnerUpRosterId,
         roster.roster_id === championRosterId,
+        roster.roster_id === thirdPlaceRosterId,
         roster.roster_id === lastPlaceRosterId
       ]
     );

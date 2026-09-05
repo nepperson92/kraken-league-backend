@@ -68,7 +68,7 @@ router.post('/season-results', async (req, res) => {
   const {
     season_id, owner_id, team_name, wins, losses, ties, points_for, points_against,
     regular_season_rank, made_playoffs, playoff_wins, playoff_losses,
-    made_championship, won_championship, last_place
+    made_championship, won_championship, third_place, last_place
   } = req.body;
   if (!season_id || !owner_id) return res.status(400).json({ error: 'season_id and owner_id are required' });
 
@@ -76,21 +76,21 @@ router.post('/season-results', async (req, res) => {
     `INSERT INTO season_results
       (season_id, owner_id, team_name, wins, losses, ties, points_for, points_against,
        regular_season_rank, made_playoffs, playoff_wins, playoff_losses,
-       made_championship, won_championship, last_place)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+       made_championship, won_championship, third_place, last_place)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
      ON CONFLICT (season_id, owner_id) DO UPDATE SET
        team_name=EXCLUDED.team_name, wins=EXCLUDED.wins, losses=EXCLUDED.losses, ties=EXCLUDED.ties,
        points_for=EXCLUDED.points_for, points_against=EXCLUDED.points_against,
        regular_season_rank=EXCLUDED.regular_season_rank, made_playoffs=EXCLUDED.made_playoffs,
        playoff_wins=EXCLUDED.playoff_wins, playoff_losses=EXCLUDED.playoff_losses,
        made_championship=EXCLUDED.made_championship, won_championship=EXCLUDED.won_championship,
-       last_place=EXCLUDED.last_place
+       third_place=EXCLUDED.third_place, last_place=EXCLUDED.last_place
      RETURNING *`,
     [
       season_id, owner_id, team_name || null,
       wins || 0, losses || 0, ties || 0, points_for || 0, points_against || 0,
       regular_season_rank || null, !!made_playoffs, playoff_wins || 0, playoff_losses || 0,
-      !!made_championship, !!won_championship, !!last_place
+      !!made_championship, !!won_championship, !!third_place, !!last_place
     ]
   );
   res.json(result.rows[0]);

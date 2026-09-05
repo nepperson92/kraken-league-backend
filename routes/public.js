@@ -37,6 +37,8 @@ router.get('/records', async (req, res) => {
       COALESCE(SUM(sr.playoff_losses),0) AS playoff_losses,
       COUNT(*) FILTER (WHERE sr.made_championship) AS championship_appearances,
       COUNT(*) FILTER (WHERE sr.won_championship) AS championships,
+      COUNT(*) FILTER (WHERE sr.regular_season_rank = 2) AS runner_up_finishes,
+      COUNT(*) FILTER (WHERE sr.regular_season_rank = 3 OR sr.third_place) AS third_place_finishes,
       COUNT(*) FILTER (WHERE sr.last_place) AS times_last_place
     FROM owners o
     LEFT JOIN season_results sr ON sr.owner_id = o.id
