@@ -188,6 +188,10 @@
       <div><label>Regular season rank</label><input id="result-rank" type="number" placeholder="1"></div>
     </div>
     <div class="row">
+      <div><label>Points for</label><input id="result-pf" type="number" step="0.01" placeholder="1450.20"></div>
+      <div><label>Points against</label><input id="result-pa" type="number" step="0.01" placeholder="1320.55"></div>
+    </div>
+    <div class="row">
       <div><label>Playoff wins</label><input id="result-po-wins" type="number" value="0"></div>
       <div><label>Playoff losses</label><input id="result-po-losses" type="number" value="0"></div>
     </div>
@@ -604,7 +608,7 @@
         return;
       }
       list.innerHTML = season.teams.map(t => `<div class="owner-row" data-id="${t.id}">
-        <span>${t.owner_name} — ${t.wins}-${t.losses}${t.ties ? '-'+t.ties : ''}${t.won_championship ? ' 🏆' : ''}${t.last_place ? ' 💩' : ''}</span>
+        <span>${t.owner_name} — ${t.wins}-${t.losses}${t.ties ? '-'+t.ties : ''}${t.points_for ? ` · ${Number(t.points_for).toFixed(1)} PF` : ''}${t.points_against ? ` / ${Number(t.points_against).toFixed(1)} PA` : ''}${t.won_championship ? ' 🏆' : ''}${t.last_place ? ' 💩' : ''}</span>
         <span>
           <button class="secondary" data-edit-result-id="${t.id}">Edit</button>
           <button data-delete-result-id="${t.id}">Delete</button>
@@ -631,6 +635,8 @@
     $('#result-losses').value = row.losses || 0;
     $('#result-ties').value = row.ties || 0;
     $('#result-rank').value = row.regular_season_rank || '';
+    $('#result-pf').value = row.points_for || '';
+    $('#result-pa').value = row.points_against || '';
     $('#result-po-wins').value = row.playoff_wins || 0;
     $('#result-po-losses').value = row.playoff_losses || 0;
     $('#result-made-playoffs').checked = !!row.made_playoffs;
@@ -646,7 +652,8 @@
     editingResultId = null;
     $('#result-owner').value = '';
     $('#result-wins').value = 0; $('#result-losses').value = 0; $('#result-ties').value = 0;
-    $('#result-rank').value = ''; $('#result-po-wins').value = 0; $('#result-po-losses').value = 0;
+    $('#result-rank').value = ''; $('#result-pf').value = ''; $('#result-pa').value = '';
+    $('#result-po-wins').value = 0; $('#result-po-losses').value = 0;
     $('#result-made-playoffs').checked = false; $('#result-made-champ').checked = false;
     $('#result-won-champ').checked = false; $('#result-last').checked = false;
     $('#result-submit').textContent = 'Save result';
@@ -685,6 +692,8 @@
         losses: parseInt($('#result-losses').value,10)||0,
         ties: parseInt($('#result-ties').value,10)||0,
         regular_season_rank: parseInt($('#result-rank').value,10) || null,
+        points_for: parseFloat($('#result-pf').value) || 0,
+        points_against: parseFloat($('#result-pa').value) || 0,
         playoff_wins: parseInt($('#result-po-wins').value,10)||0,
         playoff_losses: parseInt($('#result-po-losses').value,10)||0,
         made_playoffs: $('#result-made-playoffs').checked,
