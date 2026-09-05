@@ -30,6 +30,8 @@ router.get('/records', async (req, res) => {
       COALESCE(SUM(sr.wins),0) AS total_wins,
       COALESCE(SUM(sr.losses),0) AS total_losses,
       COALESCE(SUM(sr.ties),0) AS total_ties,
+      COALESCE(SUM(sr.points_for),0) AS total_points_for,
+      COALESCE(SUM(sr.points_against),0) AS total_points_against,
       COUNT(*) FILTER (WHERE sr.made_playoffs) AS playoff_appearances,
       COALESCE(SUM(sr.playoff_wins),0) AS playoff_wins,
       COALESCE(SUM(sr.playoff_losses),0) AS playoff_losses,
