@@ -108,13 +108,18 @@ HEAD-TO-HEAD HISTORY: ${teamAContext.h2h}
 
 Write the matchup preview now.`;
 
+  const headers = {
+    'Content-Type': 'application/json',
+    'x-api-key': apiKey,
+    'anthropic-version': '2023-06-01'
+  };
+  if (process.env.ANTHROPIC_WORKSPACE_ID) {
+    headers['anthropic-workspace-id'] = process.env.ANTHROPIC_WORKSPACE_ID;
+  }
+
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01'
-    },
+    headers,
     body: JSON.stringify({
       model: ANTHROPIC_MODEL,
       max_tokens: 600,
