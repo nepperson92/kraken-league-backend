@@ -5,6 +5,7 @@ const { generateMatchupWriteups, getHeadToHead, getCareerProfile } = require('..
 const { computeRecordBook } = require('../recordBook');
 const { getRankings, computeAndStore } = require('../draftGrading');
 const { listDues } = require('../dues');
+const { getPowerRankings } = require('../powerRankings');
 const { listKeepers } = require('../keepers');
 const { getSetting } = require('../settings');
 
@@ -239,6 +240,18 @@ router.post('/hub-messages', async (req, res) => {
     [name, body]
   );
   res.json(result.rows[0]);
+});
+
+// AI-written weekly power rankings — cached in the database, generates on first request
+router.get('/power-rankings', async (req, res) => {
+  const { leagueId, week } = req.query;
+  if (!leagueId || !week) return res.status(400).json({ error: 'leagueId and week query params are required' });
+  try {
+    const result = await getPowerRankings(leagueId, parseInt(week, 10));
+    res.json(result);
+  } catch (e) {
+    res.json({ ready: false, reason: e.message });
+  }
 });
 
 module.exports = router;

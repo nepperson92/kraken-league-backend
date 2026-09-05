@@ -6,6 +6,7 @@ const { parseRankingsCSV, importRankings, computeAndStore, updateRankingById, de
 const { clearWriteups, generateMatchupWriteups } = require('../writeupGenerator');
 const { setSetting } = require('../settings');
 const { setPaid } = require('../dues');
+const { clearPowerRankings, getPowerRankings } = require('../powerRankings');
 const { addOrUpdateKeeper, updateKeeperById, listAllKeepers } = require('../keepers');
 
 function requireAdmin(req, res, next) {
@@ -265,6 +266,19 @@ router.post('/dues', async (req, res) => {
 router.delete('/hub-messages/:id', async (req, res) => {
   await db.query('DELETE FROM hub_messages WHERE id = $1', [req.params.id]);
   res.json({ ok: true });
+});
+
+// Force-regenerate a week's power rankings
+router.post('/power-rankings/regenerate', async (req, res) => {
+  const { leagueId, year, week } = req.body;
+  if (!leagueId || !year || !week) return res.status(400).json({ error: 'leagueId, year, and week are required' });
+  try {
+    await clearPowerRankings(leagueId, year, week);
+    const result = await getPowerRankings(leagueId, parseInt(week, 10));
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 module.exports = router;

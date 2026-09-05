@@ -52,6 +52,18 @@ CREATE TABLE IF NOT EXISTS hub_messages (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- Cached AI-generated weekly power rankings, one row per league per week
+CREATE TABLE IF NOT EXISTS power_rankings (
+  id SERIAL PRIMARY KEY,
+  sleeper_league_id TEXT NOT NULL,
+  year INT NOT NULL,
+  week INT NOT NULL,
+  rankings JSONB NOT NULL,
+  model TEXT,
+  generated_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(sleeper_league_id, year, week)
+);
+
 -- Pasted-in pre-draft rankings, used as the "expected value" reference for grading
 CREATE TABLE IF NOT EXISTS draft_rankings (
   id SERIAL PRIMARY KEY,
