@@ -6,7 +6,7 @@ const { parseRankingsCSV, importRankings, computeAndStore, updateRankingById, de
 const { clearWriteups, generateMatchupWriteups } = require('../writeupGenerator');
 const { setSetting } = require('../settings');
 const { setPaid } = require('../dues');
-const { addOrUpdateKeeper, updateKeeperById } = require('../keepers');
+const { addOrUpdateKeeper, updateKeeperById, listAllKeepers } = require('../keepers');
 
 function requireAdmin(req, res, next) {
   const provided = req.header('x-admin-password');
@@ -199,11 +199,19 @@ router.post('/matchup-writeups/regenerate', async (req, res) => {
 });
 
 // ---- Keepers ----
+// All keepers, including inactive/released ones, for admin management
+router.get('/keepers', async (req, res) => {
+  const rows = await listAllKeepers();
+  res.json(rows);
+});
+
 router.post('/keepers', async (req, res) => {
-  const { year, ownerId, playerName, position, team, cost, futureCost, notes } = req.body;
-  if (!year || !ownerId || !playerName) return res.status(400).json({ error: 'year, ownerId, and playerName are required' });
+  const { ownerId, playerName, position, team, draftYear, draftRound, notes, active } = req.body;
+  if (!ownerId || !playerName || !draftYear || !draftRound) {
+    return res.status(400).json({ error: 'ownerId, playerName, draftYear, and draftRound are required' });
+  }
   try {
-    const keeper = await addOrUpdateKeeper({ year, ownerId, playerName, position, team, cost, futureCost, notes });
+    const keeper = await addOrUpdateKeeper({ ownerId, playerName, position, team, draftYear, draftRound, notes, active });
     res.json(keeper);
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -216,10 +224,12 @@ router.delete('/keepers/:id', async (req, res) => {
 });
 
 router.put('/keepers/:id', async (req, res) => {
-  const { ownerId, playerName, position, team, cost, futureCost, notes } = req.body;
-  if (!ownerId || !playerName) return res.status(400).json({ error: 'ownerId and playerName are required' });
+  const { ownerId, playerName, position, team, draftYear, draftRound, notes, active } = req.body;
+  if (!ownerId || !playerName || !draftYear || !draftRound) {
+    return res.status(400).json({ error: 'ownerId, playerName, draftYear, and draftRound are required' });
+  }
   try {
-    const keeper = await updateKeeperById(req.params.id, { ownerId, playerName, position, team, cost, futureCost, notes });
+    const keeper = await updateKeeperById(req.params.id, { ownerId, playerName, position, team, draftYear, draftRound, notes, active });
     if (!keeper) return res.status(404).json({ error: 'Keeper not found' });
     res.json(keeper);
   } catch (e) {

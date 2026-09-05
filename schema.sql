@@ -127,6 +127,13 @@ CREATE INDEX IF NOT EXISTS idx_keepers_season ON keepers(season_id);
 -- Added after initial release: what this keeper will cost if kept again next season
 ALTER TABLE keepers ADD COLUMN IF NOT EXISTS future_cost TEXT;
 
+-- Redesigned keeper cost model: store the ORIGINAL draft year/round instead of manually
+-- re-entering an escalating cost every season. The website computes the schedule automatically:
+-- cost drops by one round per year kept, capped at a 1st-round pick.
+ALTER TABLE keepers ADD COLUMN IF NOT EXISTS draft_year INT;
+ALTER TABLE keepers ADD COLUMN IF NOT EXISTS draft_round NUMERIC;
+ALTER TABLE keepers ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT TRUE;
+
 -- Simple key-value config store — currently just holds the active Sleeper league ID,
 -- so it can be updated from the admin panel without redeploying the site.
 CREATE TABLE IF NOT EXISTS settings (

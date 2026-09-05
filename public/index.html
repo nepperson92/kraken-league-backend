@@ -109,22 +109,21 @@
 
   <section>
     <h2>Keepers</h2>
-    <p class="sub" style="margin-bottom:0;">Mark which players each team is keeping for a season, and whatever cost your league charges for it (a draft round, an auction dollar amount, whatever convention you use).</p>
+    <p class="sub" style="margin-bottom:0;">Enter the player, the year they were originally drafted, and what round they cost. The site automatically works out the escalating cost for every year after — no need to re-enter it each season. Cost drops by one round per year kept, capped at a 1st.</p>
     <div id="keepers-list" style="margin:14px 0;"></div>
     <div class="row">
-      <div><label>Year (season they're kept into)</label><input id="keeper-year" type="number" placeholder="2026"></div>
       <div><label>Owner name</label><input id="keeper-owner" placeholder="Must match an owner above"></div>
-    </div>
-    <div class="row">
       <div><label>Player name</label><input id="keeper-player" placeholder="e.g. Ja'Marr Chase"></div>
-      <div><label>Position</label><input id="keeper-position" placeholder="WR"></div>
     </div>
     <div class="row">
+      <div><label>Position</label><input id="keeper-position" placeholder="WR"></div>
       <div><label>NFL team (optional)</label><input id="keeper-team" placeholder="CIN"></div>
-      <div><label>Current cost</label><input id="keeper-cost" placeholder="e.g. Round 4, or $18"></div>
     </div>
-    <label>Future cost (what it costs to keep them again next year)</label>
-    <input id="keeper-future-cost" placeholder="e.g. Round 3, or $22">
+    <div class="row">
+      <div><label>Year originally drafted</label><input id="keeper-draft-year" type="number" placeholder="2026"></div>
+      <div><label>Round drafted in</label><input id="keeper-draft-round" type="number" min="1" placeholder="4"></div>
+    </div>
+    <label><input type="checkbox" id="keeper-active" checked style="width:auto; margin-right:6px;"> Still an active keeper (uncheck if traded away or released)</label>
     <label>Notes (optional)</label>
     <input id="keeper-notes" placeholder="Anything worth remembering about this keeper">
     <button id="keeper-submit">Save keeper</button>
@@ -380,22 +379,25 @@
 
   // ---- Keepers ----
   let editingKeeperId = null;
+  const ordinal = n => { const s = ['th','st','nd','rd']; const v = n % 100; return n + (s[(v-20)%10] || s[v] || s[0]); };
 
   async function loadKeepersList(){
     const list = $('#keepers-list');
-    const year = parseInt($('#keeper-year').value, 10) || new Date().getFullYear();
-    if(!$('#keeper-year').value) $('#keeper-year').value = year;
-    list.innerHTML = 'Loading keepers for ' + year + '…';
+    list.innerHTML = 'Loading keepers…';
     try{
-      const rows = await (await fetch(`/api/keepers/${year}`)).json();
-      if(!rows.length){ list.innerHTML = `<div class="sub">No keepers on file for ${year} yet.</div>`; return; }
-      list.innerHTML = rows.map(k => `<div class="owner-row" data-id="${k.id}">
-        <span>${k.owner_name} — ${k.player_name}${k.position ? ' ('+k.position+(k.team?', '+k.team:'')+')' : ''}${k.cost ? ' · '+k.cost : ''}${k.future_cost ? ' → '+k.future_cost+' next yr' : ''}</span>
+      const rows = await (await fetch('/api/admin/keepers', { headers: headers() })).json();
+      if(!rows.length){ list.innerHTML = '<div class="sub">No keepers on file yet.</div>'; return; }
+      list.innerHTML = rows.map(k => {
+        const scheduleText = k.schedule.slice(0, 3).map(s => `${s.label}: ${ordinal(s.round)}`).join(', ');
+        const inactiveTag = !k.active ? ' <span style="color:var(--loss);">(inactive)</span>' : '';
+        return `<div class="owner-row" data-id="${k.id}">
+        <span>${k.owner_name} — ${k.player_name}${k.draft_year ? ` · drafted ${k.draft_year} R${k.draft_round}` : ''}${scheduleText ? ' · '+scheduleText : ''}${inactiveTag}</span>
         <span>
           <button class="secondary" data-edit-id="${k.id}">Edit</button>
           <button data-delete-id="${k.id}">Delete</button>
         </span>
-      </div>`).join('');
+      </div>`;
+      }).join('');
       list.querySelectorAll('button[data-edit-id]').forEach(btn => {
         const row = rows.find(r => String(r.id) === btn.dataset.editId);
         btn.addEventListener('click', () => startEditKeeper(row));
@@ -407,17 +409,16 @@
       list.innerHTML = '<div class="sub">Could not load keepers.</div>';
     }
   }
-  $('#keeper-year').addEventListener('change', loadKeepersList);
 
   function startEditKeeper(row){
     editingKeeperId = row.id;
-    $('#keeper-year').value = row.year;
     $('#keeper-owner').value = row.owner_name;
     $('#keeper-player').value = row.player_name;
     $('#keeper-position').value = row.position || '';
     $('#keeper-team').value = row.team || '';
-    $('#keeper-cost').value = row.cost || '';
-    $('#keeper-future-cost').value = row.future_cost || '';
+    $('#keeper-draft-year').value = row.draft_year || '';
+    $('#keeper-draft-round').value = row.draft_round || '';
+    $('#keeper-active').checked = row.active !== false;
     $('#keeper-notes').value = row.notes || '';
     $('#keeper-submit').textContent = 'Update keeper';
     $('#keeper-cancel-edit').classList.remove('hidden');
@@ -426,8 +427,9 @@
 
   function resetKeeperForm(){
     editingKeeperId = null;
-    $('#keeper-player').value=''; $('#keeper-position').value=''; $('#keeper-team').value='';
-    $('#keeper-cost').value=''; $('#keeper-future-cost').value=''; $('#keeper-notes').value='';
+    $('#keeper-owner').value=''; $('#keeper-player').value=''; $('#keeper-position').value=''; $('#keeper-team').value='';
+    $('#keeper-draft-year').value=''; $('#keeper-draft-round').value=''; $('#keeper-active').checked = true;
+    $('#keeper-notes').value='';
     $('#keeper-submit').textContent = 'Save keeper';
     $('#keeper-cancel-edit').classList.add('hidden');
   }
@@ -446,10 +448,13 @@
 
   $('#keeper-submit').addEventListener('click', async () => {
     const msg = $('#keeper-msg');
-    const year = parseInt($('#keeper-year').value, 10);
     const ownerName = $('#keeper-owner').value.trim();
     const playerName = $('#keeper-player').value.trim();
-    if(!year || !ownerName || !playerName){ showMsg(msg, false, 'Year, owner name, and player name are required.'); return; }
+    const draftYear = parseInt($('#keeper-draft-year').value, 10);
+    const draftRound = parseFloat($('#keeper-draft-round').value);
+    if(!ownerName || !playerName || !draftYear || !draftRound){
+      showMsg(msg, false, 'Owner, player, draft year, and draft round are all required.'); return;
+    }
     try{
       const owners = await (await fetch('/api/owners')).json();
       const owner = owners.find(o => o.name.toLowerCase() === ownerName.toLowerCase());
@@ -459,8 +464,8 @@
         ownerId: owner.id, playerName,
         position: $('#keeper-position').value.trim() || null,
         team: $('#keeper-team').value.trim() || null,
-        cost: $('#keeper-cost').value.trim() || null,
-        futureCost: $('#keeper-future-cost').value.trim() || null,
+        draftYear, draftRound,
+        active: $('#keeper-active').checked,
         notes: $('#keeper-notes').value.trim() || null
       };
 
@@ -468,7 +473,7 @@
       if(editingKeeperId){
         res = await fetch(`/api/admin/keepers/${editingKeeperId}`, { method:'PUT', headers: headers(), body: JSON.stringify(fields) });
       } else {
-        res = await fetch('/api/admin/keepers', { method:'POST', headers: headers(), body: JSON.stringify({ year, ...fields }) });
+        res = await fetch('/api/admin/keepers', { method:'POST', headers: headers(), body: JSON.stringify(fields) });
       }
       const data = await res.json();
       if(!res.ok) throw new Error(data.error || 'Could not save keeper');
