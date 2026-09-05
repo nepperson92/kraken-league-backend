@@ -184,6 +184,8 @@ async function getWeekPointsMap(year, week, scoringSettings) {
   return map;
 }
 
+const MISTAKE_THRESHOLD = 3; // points — a meaningful miss, not roster-noise from bench depth
+
 async function detectAndStoreLineupMistakes(seasonId, week, ownerId, entry, slots, pointsMap) {
   const starters = entry.starters || [];
   if (!starters.length || !Object.keys(pointsMap).length) return;
@@ -192,13 +194,17 @@ async function detectAndStoreLineupMistakes(seasonId, week, ownerId, entry, slot
   // Clear any previous computation for this owner/week so re-syncs stay accurate, not additive
   await db.query('DELETE FROM lineup_mistakes WHERE season_id=$1 AND week=$2 AND owner_id=$3', [seasonId, week, ownerId]);
 
+  // Gather every slot that had a meaningfully better bench option, then keep only the single
+  // worst one for the week — a bad week shouldn't count as 3 "mistakes" just because it had
+  // 3 underperforming starters, and a deep bench will almost always beat *some* starter by a
+  // trivial margin most weeks, which isn't a real misplay.
+  const candidates = [];
   for (let i = 0; i < starters.length; i++) {
     const pid = starters[i];
     const slot = slots[i];
     if (!slot) continue;
     const startedPts = pointsMap[pid];
     if (startedPts == null) continue;
-    const startedPlayer = await players.getPlayer(pid);
     let best = null, bestPid = null, bestPts = -Infinity;
     for (const bpid of bench) {
       const bpts = pointsMap[bpid];
@@ -207,7 +213,14 @@ async function detectAndStoreLineupMistakes(seasonId, week, ownerId, entry, slot
       if (!bp || !eligibleForSlot(slot, bp.position)) continue;
       if (bpts > bestPts) { bestPts = bpts; best = bp; bestPid = bpid; }
     }
-    if (best && bestPts > startedPts + 0.01) {
+    if (best && bestPts - startedPts >= MISTAKE_THRESHOLD) {
+      candidates.push({ pid, slot, startedPts, best, bestPid, bestPts, diff: bestPts - startedPts });
+    }
+  }
+  if (!candidates.length) return;
+  const worst = candidates.sort((a, b) => b.diff - a.diff)[0];
+  const startedPlayer = await players.getPlayer(worst.pid);
+  {
       await db.query(
         `INSERT INTO lineup_mistakes (season_id, week, owner_id, slot, started_player_id, started_name, started_pts, bench_player_id, bench_name, bench_pts, diff)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
@@ -215,13 +228,12 @@ async function detectAndStoreLineupMistakes(seasonId, week, ownerId, entry, slot
            bench_player_id=EXCLUDED.bench_player_id, bench_name=EXCLUDED.bench_name,
            bench_pts=EXCLUDED.bench_pts, diff=EXCLUDED.diff`,
         [
-          seasonId, week, ownerId, slot, pid,
-          startedPlayer ? `${startedPlayer.first_name || ''} ${startedPlayer.last_name || ''}`.trim() : pid,
-          startedPts, bestPid, `${best.first_name || ''} ${best.last_name || ''}`.trim(),
-          bestPts, bestPts - startedPts
+          seasonId, week, ownerId, worst.slot, worst.pid,
+          startedPlayer ? `${startedPlayer.first_name || ''} ${startedPlayer.last_name || ''}`.trim() : worst.pid,
+          worst.startedPts, worst.bestPid, `${worst.best.first_name || ''} ${worst.best.last_name || ''}`.trim(),
+          worst.bestPts, worst.diff
         ]
       );
-    }
   }
 }
 
