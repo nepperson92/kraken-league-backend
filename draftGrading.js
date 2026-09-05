@@ -82,6 +82,51 @@ function posBucket(pos) {
   return 'OTHER';
 }
 
+const ANTHROPIC_MODEL = 'claude-sonnet-5';
+
+// Writes a genuinely unique 2-4 sentence draft grade breakdown per team via Claude, instead of
+// filling in fixed sentence templates — the old approach read identically for every manager.
+async function generateDraftAnalysis(ctx) {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return null;
+
+  const system = `You are a sharp, slightly irreverent fantasy football analyst writing a short draft grade breakdown for one team in a home league. This is one of several you're writing in a row for different teams in the same draft — make sure each one reads distinctly from the others: vary your opening line, sentence structure, and tone. Do not default to a generic "Team X had a [good/bad] draft" opener every time. Ground everything in the specific data given — never invent stats, players, or details not present in the data. Write 2-4 sentences, plain text, no headers or markdown.`;
+
+  const user = `Team: ${ctx.teamName}
+Draft grade: ${ctx.letter} (${ctx.score}/100)
+${ctx.bestValue ? `Best value pick: ${ctx.bestValue.name} (${ctx.bestValue.position || ''}), round ${ctx.bestValue.round}, drafted about ${Math.round(ctx.bestValue.value)} picks later than their expected rank (a steal).` : 'No standout value pick this draft.'}
+${ctx.biggestReach && ctx.biggestReach.value < -5 ? `Biggest reach: ${ctx.biggestReach.name} (${ctx.biggestReach.position || ''}), round ${ctx.biggestReach.round}, taken about ${Math.abs(Math.round(ctx.biggestReach.value))} picks earlier than expected.` : 'No major reaches this draft.'}
+Roster construction: ${ctx.thinPositions.length ? `left ${ctx.thinPositions.join(' and ')} thin — didn't fully address ${ctx.thinPositions.length > 1 ? 'those positions' : 'that position'}.` : 'every starting position was addressed.'}
+
+Write the draft grade breakdown now.`;
+
+  try {
+    const headers = {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01'
+    };
+    if (process.env.ANTHROPIC_WORKSPACE_ID) headers['anthropic-workspace-id'] = process.env.ANTHROPIC_WORKSPACE_ID;
+
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        model: ANTHROPIC_MODEL,
+        max_tokens: 300,
+        system,
+        messages: [{ role: 'user', content: user }]
+      })
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const textBlock = (data.content || []).find(b => b.type === 'text');
+    return textBlock ? textBlock.text.trim() : null;
+  } catch (e) {
+    return null;
+  }
+}
+
 async function computeDraftGrades(year) {
   const seasonRes = await db.query('SELECT * FROM seasons WHERE year = $1', [year]);
   if (!seasonRes.rows.length) throw new Error(`No season saved for ${year}.`);
@@ -193,31 +238,23 @@ async function computeDraftGrades(year) {
     const finalScore = Math.round(normalizedValueScore * 0.7 + t.rosterScore * 0.3);
     const letter = scoreToLetter(finalScore);
 
-    const sentences = [];
-    if (finalScore >= 87) sentences.push(`${t.teamName} had one of the strongest drafts in the league, consistently landing players well after their expected rank.`);
-    else if (finalScore >= 73) sentences.push(`${t.teamName} put together a solid, defensible draft with more hits than misses.`);
-    else if (finalScore >= 60) sentences.push(`${t.teamName}'s draft was a mixed bag — some good value offset by a few costly reaches.`);
-    else sentences.push(`${t.teamName} struggled to find value, reaching on picks more often than the rest of the league.`);
-
-    if (t.bestValue) {
-      sentences.push(`Best value: ${t.bestValue.name} (${t.bestValue.position || ''}) in round ${t.bestValue.round}, drafted ${Math.round(t.bestValue.value)} picks after their expected rank.`);
-    }
-    if (t.biggestReach && t.biggestReach.value < -5) {
-      sentences.push(`Biggest reach: ${t.biggestReach.name} (${t.biggestReach.position || ''}) taken in round ${t.biggestReach.round}, about ${Math.abs(Math.round(t.biggestReach.value))} picks ahead of expected value.`);
-    }
-    if (t.thinPositions.length) {
-      sentences.push(`Roster construction concern: didn't fully address ${t.thinPositions.join(' and ')} through the draft.`);
-    } else {
-      sentences.push(`Roster construction was solid — every starting position was addressed.`);
-    }
+    const aiAnalysis = await generateDraftAnalysis({
+      teamName: t.teamName, score: finalScore, letter,
+      bestValue: t.bestValue, biggestReach: t.biggestReach, thinPositions: t.thinPositions
+    });
+    const fallback = `${t.teamName} drafted to a ${letter} grade (${finalScore}/100).` +
+      (t.bestValue ? ` Best value: ${t.bestValue.name} in round ${t.bestValue.round}.` : '') +
+      (t.thinPositions.length ? ` Left ${t.thinPositions.join(' and ')} thin.` : ' Addressed every starting position.');
+    const analysis = aiAnalysis || fallback;
+    const summary = analysis.split(/(?<=[.!?])\s+/)[0];
 
     results.push({
       ownerUserId: t.ownerUserId,
       teamName: t.teamName,
       score: finalScore,
       letter,
-      summary: sentences[0],
-      analysis: sentences.join(' '),
+      summary,
+      analysis,
       bestValue: t.bestValue,
       biggestReach: t.biggestReach,
       picks: t.picks

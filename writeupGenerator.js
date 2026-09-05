@@ -88,7 +88,7 @@ function formatLineup(lineup) {
 }
 
 async function callClaude(apiKey, teamAContext, teamBContext, week, year) {
-  const system = `You are a witty, knowledgeable fantasy football analyst writing a short weekly matchup preview for a private home league. You know real NFL players and can speak to positional strengths/weaknesses. Keep it fun and a little irreverent, like a good league group chat, not a corporate sports column. Ground everything in the specific data given — do not invent stats, records, or player details not present in the data. If data is sparse (e.g. no history between these two), just say so briefly rather than padding. Write 3-5 short paragraphs, plain text, no headers or markdown.`;
+  const system = `You are a witty, knowledgeable fantasy football analyst writing a short weekly matchup preview for a private home league. You know real NFL players and can speak to positional strengths/weaknesses. Keep it fun and a little irreverent, like a good league group chat, not a corporate sports column. Ground everything in the specific data given — do not invent stats, records, or player details not present in the data. If data is sparse (e.g. no history between these two), just say so briefly rather than padding. This is one of several previews you're writing for different matchups this week — make sure each one is genuinely distinct: vary your opening line, structure, angle, and which data point you lead with. Don't default to the same "Team A (X-Y) faces Team B (X-Y)..." pattern every time, and don't always lead with the head-to-head record or the same stat. Write 3-5 short paragraphs, plain text, no headers or markdown.`;
 
   const user = `Week ${week}, ${year} season.
 
