@@ -7,6 +7,7 @@ const { clearWriteups, generateMatchupWriteups } = require('../writeupGenerator'
 const { setSetting } = require('../settings');
 const { setPaid } = require('../dues');
 const { clearPowerRankings, getPowerRankings } = require('../powerRankings');
+const { clearRecaps, generateMatchupRecaps } = require('../recapGenerator');
 const { addOrUpdateKeeper, updateKeeperById, listAllKeepers } = require('../keepers');
 
 function requireAdmin(req, res, next) {
@@ -275,6 +276,19 @@ router.post('/power-rankings/regenerate', async (req, res) => {
   try {
     await clearPowerRankings(leagueId, year, week);
     const result = await getPowerRankings(leagueId, parseInt(week, 10));
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Force-regenerate a week's post-game recaps
+router.post('/matchup-recaps/regenerate', async (req, res) => {
+  const { leagueId, year, week } = req.body;
+  if (!leagueId || !year || !week) return res.status(400).json({ error: 'leagueId, year, and week are required' });
+  try {
+    await clearRecaps(leagueId, year, week);
+    const result = await generateMatchupRecaps(leagueId, parseInt(week, 10));
     res.json(result);
   } catch (e) {
     res.status(500).json({ error: e.message });

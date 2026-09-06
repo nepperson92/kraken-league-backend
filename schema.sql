@@ -64,6 +64,21 @@ CREATE TABLE IF NOT EXISTS power_rankings (
   UNIQUE(sleeper_league_id, year, week)
 );
 
+-- Genuine post-game recaps (actual final scores/performances), separate from the pre-game
+-- "matchup_writeups" previews — only generated once a week's games are actually complete.
+CREATE TABLE IF NOT EXISTS matchup_recaps (
+  id SERIAL PRIMARY KEY,
+  sleeper_league_id TEXT NOT NULL,
+  year INT NOT NULL,
+  week INT NOT NULL,
+  owner_a_id INT NOT NULL REFERENCES owners(id) ON DELETE CASCADE,
+  owner_b_id INT NOT NULL REFERENCES owners(id) ON DELETE CASCADE,
+  content TEXT NOT NULL,
+  model TEXT,
+  generated_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(sleeper_league_id, year, week, owner_a_id, owner_b_id)
+);
+
 -- Pasted-in pre-draft rankings, used as the "expected value" reference for grading
 CREATE TABLE IF NOT EXISTS draft_rankings (
   id SERIAL PRIMARY KEY,

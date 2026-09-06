@@ -6,6 +6,7 @@ const { computeRecordBook } = require('../recordBook');
 const { getRankings, computeAndStore } = require('../draftGrading');
 const { listDues } = require('../dues');
 const { getPowerRankings } = require('../powerRankings');
+const { generateMatchupRecaps } = require('../recapGenerator');
 const { listKeepers } = require('../keepers');
 const { getSetting } = require('../settings');
 
@@ -248,6 +249,18 @@ router.get('/power-rankings', async (req, res) => {
   if (!leagueId || !week) return res.status(400).json({ error: 'leagueId and week query params are required' });
   try {
     const result = await getPowerRankings(leagueId, parseInt(week, 10));
+    res.json(result);
+  } catch (e) {
+    res.json({ ready: false, reason: e.message });
+  }
+});
+
+// Genuine post-game recaps — only generate once a week's games are actually complete
+router.get('/matchup-recaps', async (req, res) => {
+  const { leagueId, week } = req.query;
+  if (!leagueId || !week) return res.status(400).json({ error: 'leagueId and week query params are required' });
+  try {
+    const result = await generateMatchupRecaps(leagueId, parseInt(week, 10));
     res.json(result);
   } catch (e) {
     res.json({ ready: false, reason: e.message });
