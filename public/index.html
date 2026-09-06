@@ -108,6 +108,18 @@
   </section>
 
   <section>
+    <h2>Power rankings & weekly recap</h2>
+    <p class="sub" style="margin-bottom:0;">Both generate automatically the first time anyone opens that tab for a given week, then stay cached. Use this to force a fresh write-up if the logic changes or something looks off — this uses the website league ID set above.</p>
+    <div class="row">
+      <div><label>Year</label><input id="pr-year" type="number" placeholder="2026"></div>
+      <div><label>Week</label><input id="pr-week" type="number" min="1" max="18" placeholder="1"></div>
+    </div>
+    <button id="pr-recompute-btn">Force recompute power rankings</button>
+    <button class="secondary" id="recap-recompute-btn">Force recompute weekly recap</button>
+    <div id="pr-msg" class="msg"></div>
+  </section>
+
+  <section>
     <h2>Keepers</h2>
     <p class="sub" style="margin-bottom:0;">Enter the player, the year they were originally drafted, and what round they cost. The site automatically works out the escalating cost for every year after — no need to re-enter it each season. Cost drops by one round per year kept, capped at a 1st.</p>
     <div id="keepers-list" style="margin:14px 0;"></div>
@@ -307,6 +319,40 @@
       if(data.ready === false){ showMsg(msg, false, data.reason); return; }
       if(!res.ok) throw new Error(data.error || 'Recompute failed');
       showMsg(msg, true, `Recomputed grades for ${data.results.length} teams.`);
+    }catch(e){ showMsg(msg, false, e.message); }
+  });
+
+  $('#pr-recompute-btn').addEventListener('click', async () => {
+    const year = parseInt($('#pr-year').value, 10);
+    const week = parseInt($('#pr-week').value, 10);
+    const leagueId = $('#site-league-id').value.trim();
+    const msg = $('#pr-msg');
+    if(!year || !week){ showMsg(msg, false, 'Enter a year and week above first.'); return; }
+    if(!leagueId){ showMsg(msg, false, 'Set the website league ID in the section above first.'); return; }
+    showMsg(msg, true, 'Recomputing power rankings…');
+    try{
+      const res = await fetch('/api/admin/power-rankings/regenerate', { method:'POST', headers: headers(), body: JSON.stringify({ leagueId, year, week }) });
+      const data = await res.json();
+      if(data.ready === false){ showMsg(msg, false, data.reason); return; }
+      if(!res.ok) throw new Error(data.error || 'Recompute failed');
+      showMsg(msg, true, `Recomputed power rankings for week ${week}.`);
+    }catch(e){ showMsg(msg, false, e.message); }
+  });
+
+  $('#recap-recompute-btn').addEventListener('click', async () => {
+    const year = parseInt($('#pr-year').value, 10);
+    const week = parseInt($('#pr-week').value, 10);
+    const leagueId = $('#site-league-id').value.trim();
+    const msg = $('#pr-msg');
+    if(!year || !week){ showMsg(msg, false, 'Enter a year and week above first.'); return; }
+    if(!leagueId){ showMsg(msg, false, 'Set the website league ID in the section above first.'); return; }
+    showMsg(msg, true, 'Recomputing weekly recap…');
+    try{
+      const res = await fetch('/api/admin/matchup-recaps/regenerate', { method:'POST', headers: headers(), body: JSON.stringify({ leagueId, year, week }) });
+      const data = await res.json();
+      if(data.ready === false){ showMsg(msg, false, data.reason); return; }
+      if(!res.ok) throw new Error(data.error || 'Recompute failed');
+      showMsg(msg, true, `Recomputed weekly recap for week ${week} (${data.results.length} matchup(s)).`);
     }catch(e){ showMsg(msg, false, e.message); }
   });
 
