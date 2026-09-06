@@ -1,4 +1,6 @@
 const db = require('./db');
+const { getOrCreateOwner } = require('./sleeperSync');
+const { getCareerProfile } = require('./writeupGenerator');
 
 const API = 'https://api.sleeper.app/v1';
 const ANTHROPIC_MODEL = 'claude-sonnet-5';
@@ -29,6 +31,35 @@ async function callClaude(system, user) {
   return block ? block.text.trim() : null;
 }
 
+function computeCustomPoints(stats, scoringSettings) {
+  let total = 0;
+  for (const key in scoringSettings) {
+    const v = stats[key], w = scoringSettings[key];
+    if (typeof v === 'number' && typeof w === 'number') total += v * w;
+  }
+  return total;
+}
+
+// Roster strength: this week's starting lineup, run through projections + league scoring —
+// the only meaningful signal in week 1, before any games have actually been played.
+async function getRosterStrengthByRoster(year, week, scoringSettings, rosters) {
+  const strength = {};
+  try {
+    const url = `https://api.sleeper.app/projections/nfl/${year}/${week}?season_type=regular&position[]=QB&position[]=RB&position[]=WR&position[]=TE&position[]=K&position[]=DEF&position[]=FLEX`;
+    const data = await fetchJSON(url);
+    const projMap = {};
+    (Array.isArray(data) ? data : Object.values(data || {})).forEach(item => {
+      const pid = item.player_id || item.playerId;
+      if (!pid) return;
+      projMap[pid] = computeCustomPoints(item.stats || {}, scoringSettings);
+    });
+    rosters.forEach(r => {
+      strength[r.roster_id] = (r.starters || []).reduce((sum, pid) => sum + (projMap[pid] || 0), 0);
+    });
+  } catch (e) { /* roster strength is a bonus signal — leave empty on failure */ }
+  return strength;
+}
+
 async function generatePowerRankings(league, leagueId, week, year) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return { ready: false, reason: 'No Anthropic API key configured on the server.' };
@@ -51,27 +82,52 @@ async function generatePowerRankings(league, leagueId, week, year) {
     });
   }
 
+  // Roster strength (projected lineup this week) and manager career history — always gathered,
+  // but weighted more heavily by the prompt in early weeks when in-season data is thin.
+  const strengthByRoster = await getRosterStrengthByRoster(year, week, league.scoring_settings || {}, rosters);
+  const careerByRoster = {};
+  for (const r of rosters) {
+    const user = userById[r.owner_id];
+    if (!user) continue;
+    try {
+      const owner = await getOrCreateOwner(user.user_id, user.display_name);
+      careerByRoster[r.roster_id] = await getCareerProfile(owner.id);
+    } catch (e) { /* career history is a bonus signal — skip on failure */ }
+  }
+
   const teams = rosters.map(r => {
     const user = userById[r.owner_id] || {};
     const teamName = (user.metadata && user.metadata.team_name) || user.display_name || 'Team';
     const s = r.settings || {};
     const recent = recentByRoster[r.roster_id] || [];
+    const career = careerByRoster[r.roster_id];
     return {
       teamName,
       wins: s.wins || 0, losses: s.losses || 0, ties: s.ties || 0,
       pf: (s.fpts || 0) + (s.fpts_decimal || 0) / 100,
       pa: (s.fpts_against || 0) + (s.fpts_against_decimal || 0) / 100,
-      recent
+      recent,
+      rosterStrength: strengthByRoster[r.roster_id] || 0,
+      career
     };
   });
 
   if (!teams.length) return { ready: false, reason: 'Could not find any teams for this league.' };
 
-  const dataBlock = teams.map(t =>
-    `${t.teamName}: record ${t.wins}-${t.losses}${t.ties ? '-' + t.ties : ''}, points for ${t.pf.toFixed(1)}, points against ${t.pa.toFixed(1)}, last ${t.recent.length} game score(s): ${t.recent.length ? t.recent.map(p => p.toFixed(1)).join(', ') : 'none yet'}`
-  ).join('\n');
+  const dataBlock = teams.map(t => {
+    const careerStr = t.career
+      ? `career record ${t.career.total_wins}-${t.career.total_losses} across ${t.career.seasons_played} season(s), ${t.career.championships} championship(s), ${t.career.playoff_appearances} playoff appearance(s)`
+      : 'no career history on file (new to the league)';
+    return `${t.teamName}: record ${t.wins}-${t.losses}${t.ties ? '-' + t.ties : ''}, points for ${t.pf.toFixed(1)}, points against ${t.pa.toFixed(1)}, last ${t.recent.length} game score(s): ${t.recent.length ? t.recent.map(p => p.toFixed(1)).join(', ') : 'none yet'}, this week's projected starting lineup: ${t.rosterStrength.toFixed(1)} pts, ${careerStr}`;
+  }).join('\n');
 
-  const system = `You are a sharp, opinionated fantasy football analyst writing this week's power rankings for a private home league. Power rankings are NOT the same as standings — rank teams by who is actually playing the best right now, blending record, point differential, and recent scoring form. A team with a good record but fading form should rank below a team on a hot streak with a worse record, and vice versa when the data supports it. Have a real point of view, don't just re-list the standings order. Ground everything in the data given, never invent stats or details not present. Respond with ONLY a valid JSON array, no other text, no markdown fences, in exactly this shape:
+  const weightingNote = week === 1
+    ? `This is Week 1 — there is no in-season data yet, so base the rankings primarily on each team's projected roster strength this week and the manager's career track record (championships, career win rate). Treat the 0-0 records as uninformative.`
+    : week === 2
+      ? `This is Week 2 — lean heavily on how each team actually scored in Week 1, using projected roster strength and career history as secondary context, not the primary factor anymore.`
+      : `Blend actual record, point differential, and recent scoring form as the primary signal at this point in the season. Projected roster strength and career history are useful tiebreakers or context, but in-season performance should now dominate the ranking.`;
+
+  const system = `You are a sharp, opinionated fantasy football analyst writing this week's power rankings for a private home league. Power rankings are NOT the same as standings — rank teams by who is actually playing the best right now. ${weightingNote} Have a real point of view, don't just re-list the standings order. Ground everything in the data given, never invent stats or details not present. Respond with ONLY a valid JSON array, no other text, no markdown fences, in exactly this shape:
 [{"rank":1,"teamName":"...","blurb":"1-2 witty, specific sentences explaining why they're ranked here"}]
 Include every team exactly once, ranked 1 through N, most dominant first.`;
 
