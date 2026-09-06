@@ -20,7 +20,7 @@ async function callClaude(system, user) {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers,
-    body: JSON.stringify({ model: ANTHROPIC_MODEL, max_tokens: 1200, system, messages: [{ role: 'user', content: user }] })
+    body: JSON.stringify({ model: ANTHROPIC_MODEL, max_tokens: 2500, system, messages: [{ role: 'user', content: user }] })
   });
   if (!res.ok) {
     const text = await res.text();
@@ -138,9 +138,16 @@ Include every team exactly once, ranked 1 through N, most dominant first.`;
 
   let rankings;
   try {
-    rankings = JSON.parse(text.replace(/```json|```/g, '').trim());
+    let cleaned = text.replace(/```json|```/g, '').trim();
+    // Claude sometimes adds a stray sentence before/after the array despite instructions —
+    // pull out just the [...] portion rather than failing on the whole response.
+    const start = cleaned.indexOf('[');
+    const end = cleaned.lastIndexOf(']');
+    if (start !== -1 && end !== -1 && end > start) cleaned = cleaned.slice(start, end + 1);
+    rankings = JSON.parse(cleaned);
+    if (!Array.isArray(rankings) || !rankings.length) throw new Error('Empty or non-array result');
   } catch (e) {
-    return { ready: false, reason: 'Could not parse the generated rankings.' };
+    return { ready: false, reason: `Could not parse the generated rankings (${e.message}).` };
   }
 
   await db.query(
